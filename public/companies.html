@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Companies</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html">Dashboard</a>
+    <a href="companies.html">Companies</a>
+    <a href="vendors.html">Vendors</a>
+    <a href="transactions.html">Transactions</a>
+    <a href="items.html">Items</a>
+    <a href="users.html">Users</a>
+  </nav>
+  <div class="container">
+    <div class="card">
+      <h2>Companies</h2>
+      <div style="display:flex; gap:12px;">
+        <div style="flex:1;">
+          <h3>Create Company</h3>
+          <div class="form-row">
+            <input id="cname" placeholder="Company Name" />
+            <input id="cgst" placeholder="GSTIN"/>
+          </div>
+          <div class="form-row">
+            <input id="cemail" placeholder="Email"/>
+            <input id="cphone" placeholder="Phone"/>
+          </div>
+          <div class="form-row">
+            <input id="caddr" placeholder="Address"/>
+            <button class="btn" onclick="createCompany()">Create</button>
+          </div>
+        </div>
+        <div style="flex:2">
+          <h3>All Companies</h3>
+          <table id="companiesTable">
+            <thead><tr><th>ID</th><th>Name</th><th>GSTIN</th><th>Email</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script src="js/api.js"></script>
+<script>
+  async function loadCompanies(){
+    const rows = await api.get('/companies');
+    const tbody = document.querySelector('#companiesTable tbody');
+    tbody.innerHTML = '';
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${r.Company_ID}</td><td>${r.Company_Name}</td><td>${r.GSTIN}</td><td>${r.Email}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function createCompany(){
+    const Company_Name = document.getElementById('cname').value;
+    const GSTIN = document.getElementById('cgst').value;
+    const Email = document.getElementById('cemail').value;
+    const Phone = document.getElementById('cphone').value;
+    const Address = document.getElementById('caddr').value;
+    await api.post('/companies', { Company_Name, GSTIN, Email, Phone, Address });
+    await loadCompanies();
+    alert('Company created');
+  }
+
+  loadCompanies();
+</script>
+</body>
+</html>

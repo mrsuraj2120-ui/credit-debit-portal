@@ -1,0 +1,115 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Transactions</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html">Dashboard</a>
+    <a href="companies.html">Companies</a>
+    <a href="vendors.html">Vendors</a>
+    <a href="transactions.html">Transactions</a>
+    <a href="items.html">Items</a>
+    <a href="users.html">Users</a>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h2>Create Transaction</h2>
+      <div class="form-row">
+        <select id="type"><option>Debit</option><option>Credit</option></select>
+        <input id="tdate" type="date" />
+        <select id="tcompany"></select>
+        <select id="tvendor"></select>
+      </div>
+      <div class="card">
+        <h4>Items</h4>
+        <div id="itemsContainer"></div>
+        <button class="btn" onclick="addItemRow()">Add Item</button>
+      </div>
+      <div style="margin-top:12px;">
+        <button class="btn" onclick="createTransaction()">Save Transaction</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Existing Transactions</h2>
+      <table id="transTable">
+        <thead><tr><th>ID</th><th>Type</th><th>Date</th><th>Company</th><th>Vendor</th><th>Total</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+<script src="js/api.js"></script>
+<script>
+  function createItemElement(idx) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'form-row';
+    wrapper.innerHTML = `
+      <input placeholder="Description" class="it-desc" />
+      <input placeholder="HSN" class="it-hsn" />
+      <input placeholder="Qty" class="it-qty" type="number" />
+      <input placeholder="Rate" class="it-rate" type="number" />
+      <input placeholder="Tax%" class="it-tax" type="number" />
+      <button class="btn" onclick="this.parentElement.remove()">Remove</button>
+    `;
+    return wrapper;
+  }
+
+  function addItemRow(){
+    document.getElementById('itemsContainer').appendChild(createItemElement());
+  }
+
+  async function loadSelects(){
+    const companies = await api.get('/companies');
+    const vendors = await api.get('/vendors');
+    const compSel = document.getElementById('tcompany');
+    const vendSel = document.getElementById('tvendor');
+    compSel.innerHTML = '<option value="">--Select Company--</option>';
+    vendSel.innerHTML = '<option value="">--Select Vendor--</option>';
+    companies.forEach(c => { const o = document.createElement('option'); o.value = c.Company_ID; o.text = c.Company_Name; compSel.appendChild(o); });
+    vendors.forEach(v => { const o = document.createElement('option'); o.value = v.Vendor_ID; o.text = v.Vendor_Name; vendSel.appendChild(o); });
+  }
+
+  async function createTransaction(){
+    const Type = document.getElementById('type').value;
+    const Date = document.getElementById('tdate').value || new Date().toISOString();
+    const Company_ID = document.getElementById('tcompany').value;
+    const Vendor_ID = document.getElementById('tvendor').value;
+    const itemsEls = document.querySelectorAll('#itemsContainer .form-row');
+    const Items = Array.from(itemsEls).map(el => ({
+      Description: el.querySelector('.it-desc').value,
+      HSN_Code: el.querySelector('.it-hsn').value,
+      Quantity: el.querySelector('.it-qty').value || 0,
+      Rate: el.querySelector('.it-rate').value || 0,
+      Tax_Percentage: el.querySelector('.it-tax').value || 0
+    }));
+    const payload = { Type, Date, Company_ID, Vendor_ID, Items, Created_By: 'webuser' };
+    await api.post('/transactions', payload);
+    alert('Created');
+    loadTransactions();
+  }
+
+  async function loadTransactions(){
+    const rows = await api.get('/transactions');
+    const tbody = document.querySelector('#transTable tbody');
+    tbody.innerHTML = '';
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${r.Transaction_ID}</td><td>${r.Type}</td><td>${r.Date}</td><td>${r.Company_ID}</td><td>${r.Vendor_ID}</td><td>${r.Total_Amount}</td>
+        <td>
+          <a href="/api/transactions/${encodeURIComponent(r.Transaction_ID)}/pdf" target="_blank">PDF</a>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // init
+  addItemRow(); addItemRow();
+  loadSelects(); loadTransactions();
+</script>
+</body>
+</html>

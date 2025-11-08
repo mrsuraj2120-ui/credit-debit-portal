@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Vendors - Debit/Credit Note Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- 🔹 NAVIGATION BAR -->
+  <nav class="nav">
+    <a href="index.html">Dashboard</a>
+    <a href="companies.html">Companies</a>
+    <a href="vendors.html">Vendors</a>
+    <a href="transactions.html">Transactions</a>
+    <a href="items.html">Items</a>
+    <a href="users.html">Users</a>
+  </nav>
+
+  <!-- 🔹 PAGE CONTAINER -->
+  <div class="container">
+    <div class="card">
+      <h2>Vendors</h2>
+      <p class="small">Create and manage your vendor master records</p>
+
+      <div style="display:flex; gap:12px;">
+        <!-- Left side: Vendor Creation Form -->
+        <div style="flex:1;">
+          <h3>Create Vendor</h3>
+          <div class="form-row">
+            <input id="vname" placeholder="Vendor Name" />
+            <input id="vgst" placeholder="GSTIN" />
+          </div>
+          <div class="form-row">
+            <input id="vcontact" placeholder="Contact Person" />
+            <input id="vemail" placeholder="Email" />
+          </div>
+          <div class="form-row">
+            <input id="vphone" placeholder="Phone" />
+            <select id="vcompany"></select>
+          </div>
+          <div class="form-row">
+            <input id="vaddress" placeholder="Address" />
+            <button class="btn" onclick="createVendor()">Create</button>
+          </div>
+        </div>
+
+        <!-- Right side: Vendor List -->
+        <div style="flex:2;">
+          <h3>All Vendors</h3>
+          <table id="vendorsTable">
+            <thead>
+              <tr>
+                <th>ID</th><th>Name</th><th>Company</th><th>GSTIN</th><th>Email</th><th>Phone</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    async function loadCompaniesForSelect() {
+      const companies = await api.get('/companies');
+      const select = document.getElementById('vcompany');
+      select.innerHTML = '<option value="">--Select Company--</option>';
+      companies.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.Company_ID;
+        opt.text = c.Company_Name;
+        select.appendChild(opt);
+      });
+    }
+
+    async function loadVendors() {
+      const rows = await api.get('/vendors');
+      const tbody = document.querySelector('#vendorsTable tbody');
+      tbody.innerHTML = '';
+      rows.forEach(v => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${v.Vendor_ID}</td>
+          <td>${v.Vendor_Name}</td>
+          <td>${v.Linked_Company}</td>
+          <td>${v.GSTIN}</td>
+          <td>${v.Email}</td>
+          <td>${v.Phone}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function createVendor() {
+      const Vendor_Name = document.getElementById('vname').value;
+      const GSTIN = document.getElementById('vgst').value;
+      const Contact_Person = document.getElementById('vcontact').value;
+      const Email = document.getElementById('vemail').value;
+      const Phone = document.getElementById('vphone').value;
+      const Linked_Company = document.getElementById('vcompany').value;
+      const Address = document.getElementById('vaddress').value;
+
+      await api.post('/vendors', { Vendor_Name, GSTIN, Contact_Person, Email, Phone, Linked_Company, Address });
+      alert('Vendor created successfully ✅');
+      loadVendors();
+    }
+
+    loadCompaniesForSelect();
+    loadVendors();
+  </script>
+</body>
+</html>

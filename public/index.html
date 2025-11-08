@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard - Debit/Credit Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html">Dashboard</a>
+    <a href="companies.html">Companies</a>
+    <a href="vendors.html">Vendors</a>
+    <a href="transactions.html">Transactions</a>
+    <a href="items.html">Items</a>
+    <a href="users.html">Users</a>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h2>Dashboard</h2>
+      <p class="small">Summary & quick actions</p>
+
+      <div id="summary" style="display:flex; gap:12px; margin-top:12px;">
+        <div class="card" style="flex:1;">
+          <h3 id="totalCompanies">Companies: --</h3>
+        </div>
+        <div class="card" style="flex:1;">
+          <h3 id="totalVendors">Vendors: --</h3>
+        </div>
+        <div class="card" style="flex:1;">
+          <h3 id="totalTransactions">Transactions: --</h3>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <button class="btn" onclick="location.href='transactions.html'">Create New Transaction</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    async function loadSummary(){
+      const companies = await api.get('/companies');
+      const vendors = await api.get('/vendors');
+      const transactions = await api.get('/transactions');
+      document.getElementById('totalCompanies').innerText = `Companies: ${companies.length}`;
+      document.getElementById('totalVendors').innerText = `Vendors: ${vendors.length}`;
+      document.getElementById('totalTransactions').innerText = `Transactions: ${transactions.length}`;
+    }
+    loadSummary();
+  </script>
+</body>
+</html>

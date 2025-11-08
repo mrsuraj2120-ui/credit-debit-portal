@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Users - Debit/Credit Note Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- 🔹 NAVIGATION BAR -->
+  <nav class="nav">
+    <a href="index.html">Dashboard</a>
+    <a href="companies.html">Companies</a>
+    <a href="vendors.html">Vendors</a>
+    <a href="transactions.html">Transactions</a>
+    <a href="items.html">Items</a>
+    <a href="users.html">Users</a>
+  </nav>
+
+  <!-- 🔹 PAGE CONTENT -->
+  <div class="container">
+    <div class="card">
+      <h2>Users</h2>
+      <p class="small">Manage system users and access roles</p>
+
+      <div style="display:flex; gap:12px;">
+        <!-- Left side: Add User Form -->
+        <div style="flex:1;">
+          <h3>Add New User</h3>
+          <div class="form-row">
+            <input id="uname" placeholder="Full Name" />
+            <input id="uemail" placeholder="Email" />
+          </div>
+          <div class="form-row">
+            <select id="urole">
+              <option value="Admin">Admin</option>
+              <option value="Approver">Approver</option>
+              <option value="Viewer">Viewer</option>
+            </select>
+            <select id="uactive">
+              <option value="TRUE">Active</option>
+              <option value="FALSE">Inactive</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <button class="btn" onclick="addUser()">Add User</button>
+          </div>
+        </div>
+
+        <!-- Right side: User List -->
+        <div style="flex:2;">
+          <h3>All Users</h3>
+          <table id="usersTable">
+            <thead>
+              <tr>
+                <th>User ID</th><th>Name</th><th>Email</th><th>Role</th><th>Active</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    async function loadUsers() {
+      const users = await api.get('/users');
+      const tbody = document.querySelector('#usersTable tbody');
+      tbody.innerHTML = '';
+
+      users.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${u.User_ID}</td>
+          <td>${u.Name}</td>
+          <td>${u.Email}</td>
+          <td>${u.Role}</td>
+          <td>${u.Active}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function addUser() {
+      const Name = document.getElementById('uname').value;
+      const Email = document.getElementById('uemail').value;
+      const Role = document.getElementById('urole').value;
+      const Active = document.getElementById('uactive').value;
+
+      await api.post('/users', { Name, Email, Role, Active });
+      alert('User added successfully ✅');
+      loadUsers();
+    }
+
+    loadUsers();
+  </script>
+</body>
+</html>

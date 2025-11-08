@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Items - Debit/Credit Note Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- 🔹 NAVIGATION BAR -->
+  <nav class="nav">
+    <a href="index.html">Dashboard</a>
+    <a href="companies.html">Companies</a>
+    <a href="vendors.html">Vendors</a>
+    <a href="transactions.html">Transactions</a>
+    <a href="items.html">Items</a>
+    <a href="users.html">Users</a>
+  </nav>
+
+  <!-- 🔹 PAGE CONTAINER -->
+  <div class="container">
+    <div class="card">
+      <h2>Items</h2>
+      <p class="small">Manage line items for debit/credit notes</p>
+
+      <div style="display:flex; gap:12px;">
+        <!-- Left side: Item form -->
+        <div style="flex:1;">
+          <h3>Add New Item</h3>
+          <div class="form-row">
+            <input id="itrans" placeholder="Transaction ID (e.g. DBN001)" />
+          </div>
+          <div class="form-row">
+            <input id="idesc" placeholder="Description" />
+            <input id="ihsn" placeholder="HSN Code" />
+          </div>
+          <div class="form-row">
+            <input id="iqty" type="number" placeholder="Qty" />
+            <input id="irate" type="number" placeholder="Rate" />
+          </div>
+          <div class="form-row">
+            <input id="itax" type="number" placeholder="Tax %" />
+            <button class="btn" onclick="addItem()">Add</button>
+          </div>
+        </div>
+
+        <!-- Right side: Items list -->
+        <div style="flex:2;">
+          <h3>All Items</h3>
+          <table id="itemsTable">
+            <thead>
+              <tr>
+                <th>ID</th><th>Transaction</th><th>Description</th><th>Qty</th><th>Rate</th><th>Tax%</th><th>Total</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    async function loadItems() {
+      const rows = await api.get('/items');
+      const tbody = document.querySelector('#itemsTable tbody');
+      tbody.innerHTML = '';
+      rows.forEach(i => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i.Item_ID}</td>
+          <td>${i.Transaction_ID}</td>
+          <td>${i.Description}</td>
+          <td>${i.Quantity}</td>
+          <td>${i.Rate}</td>
+          <td>${i.Tax_Percentage}</td>
+          <td>${i.Total_Amount}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function addItem() {
+      const Transaction_ID = document.getElementById('itrans').value;
+      const Description = document.getElementById('idesc').value;
+      const HSN_Code = document.getElementById('ihsn').value;
+      const Quantity = parseFloat(document.getElementById('iqty').value) || 0;
+      const Rate = parseFloat(document.getElementById('irate').value) || 0;
+      const Tax_Percentage = parseFloat(document.getElementById('itax').value) || 0;
+      const Tax_Amount = (Quantity * Rate * Tax_Percentage) / 100;
+      const Total_Amount = Quantity * Rate + Tax_Amount;
+
+      await api.post('/items', { Transaction_ID, Description, HSN_Code, Quantity, Rate, Tax_Percentage, Tax_Amount, Total_Amount });
+      alert('Item added successfully ✅');
+      loadItems();
+    }
+
+    loadItems();
+  </script>
+</body>
+</html>
