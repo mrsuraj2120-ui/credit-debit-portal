@@ -1,54 +1,220 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Dashboard - Debit/Credit Portal</title>
+  <meta charset="UTF-8">
+  <title>User Dashboard - Credit/Debit Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
-  <nav class="nav">
-    <a href="index.html">Dashboard</a>
-    <a href="companies.html">Companies</a>
-    <a href="vendors.html">Vendors</a>
-    <a href="transactions.html">Transactions</a>
-    <a href="items.html">Items</a>
-    <a href="users.html">Users</a>
-  </nav>
 
-  <div class="container">
-    <div class="card">
-      <h2>Dashboard</h2>
-      <p class="small">Summary & quick actions</p>
+<body class="bg-gray-100 text-gray-800">
+  <div class="flex">
+    <!-- Sidebar -->
+    <aside class="w-64 h-screen bg-gray-900 text-white flex flex-col p-4 space-y-6 sticky top-0">
+      <h2 id="userHeader" class="text-xl font-bold mb-4 flex items-center space-x-2">
+        <span id="userEmoji">👤</span>
+        <span id="userNameHeader">User</span>
+      </h2>
 
-      <div id="summary" style="display:flex; gap:12px; margin-top:12px;">
-        <div class="card" style="flex:1;">
-          <h3 id="totalCompanies">Companies: --</h3>
+      <nav class="flex flex-col space-y-3 nav">
+        <a href="index.html" class="hover:bg-gray-700 p-2 rounded">🏠 Dashboard</a>
+        <a href="transactions.html" class="hover:bg-gray-700 p-2 rounded">🧾 Credit Notes</a>
+        <a href="transactions.html" class="hover:bg-gray-700 p-2 rounded">💸 Debit Notes</a>
+        <a href="#" class="hover:bg-gray-700 p-2 rounded">📈 Reports</a>
+        <a href="#" class="hover:bg-gray-700 p-2 rounded">⚙️ Settings</a>
+      </nav>
+
+      <!-- User Info -->
+      <div class="mt-auto bg-gray-800 p-3 rounded-lg text-sm">
+        <p class="text-xs opacity-70">Role: <span id="adminRole"></span></p>
+        <button onclick="logout()" class="mt-2 bg-red-600 px-3 py-1 rounded text-xs">Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Dashboard -->
+    <main class="flex-1 p-8 overflow-y-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold">Dashboard Overview</h1>
+        <span id="companyInfo" class="text-sm text-gray-600 ml-2"></span>
+        <input type="text" placeholder="Search..." class="border p-2 rounded w-60 shadow-sm">
+      </div>
+
+      <!-- Summary Widgets -->
+      <div class="grid grid-cols-4 gap-6 mb-8">
+        <div class="bg-white p-5 rounded-xl shadow">
+          <h3 class="text-gray-500 text-sm">Total Credit Notes</h3>
+          <p class="text-3xl font-bold text-blue-600" id="creditCount">0</p>
         </div>
-        <div class="card" style="flex:1;">
-          <h3 id="totalVendors">Vendors: --</h3>
+        <div class="bg-white p-5 rounded-xl shadow">
+          <h3 class="text-gray-500 text-sm">Total Debit Notes</h3>
+          <p class="text-3xl font-bold text-orange-600" id="debitCount">0</p>
         </div>
-        <div class="card" style="flex:1;">
-          <h3 id="totalTransactions">Transactions: --</h3>
+        <div class="bg-white p-5 rounded-xl shadow">
+          <h3 class="text-gray-500 text-sm">Net Balance</h3>
+          <p class="text-3xl font-bold text-green-600" id="netBalance">₹0</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow">
+          <h3 class="text-gray-500 text-sm">Pending Approvals</h3>
+          <p class="text-3xl font-bold text-yellow-600" id="pendingCount">0</p>
         </div>
       </div>
 
-      <div style="margin-top:16px;">
-        <button class="btn" onclick="location.href='transactions.html'">Create New Transaction</button>
+      <!-- Charts Section -->
+      <div class="grid grid-cols-2 gap-6 mb-8">
+        <div class="bg-white p-6 rounded-xl shadow">
+          <h3 class="text-lg font-semibold mb-4">Credit vs Debit Ratio</h3>
+          <canvas id="creditDebitChart" class="max-h-[250px]"></canvas>
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow">
+          <h3 class="text-lg font-semibold mb-4">Monthly Trend</h3>
+          <canvas id="monthlyTrend" class="max-h-[250px]"></canvas>
+        </div>
       </div>
-    </div>
+
+      <!-- Recent Notes Table -->
+      <div class="bg-white p-6 rounded-xl shadow mb-8">
+        <h3 class="text-lg font-semibold mb-4">Recent Notes</h3>
+        <table class="w-full text-sm">
+          <thead class="bg-gray-100">
+            <tr>
+              <th class="text-left p-2">Note ID</th>
+              <th class="text-left p-2">Type</th>
+              <th class="text-left p-2">Date</th>
+              <th class="text-left p-2">Customer</th>
+              <th class="text-left p-2">Amount</th>
+              <th class="text-left p-2">Status</th>
+            </tr>
+          </thead>
+          <tbody id="recentNotes"></tbody>
+        </table>
+      </div>
+    </main>
   </div>
 
-  <script src="js/api.js"></script>
+  <!-- Scripts -->
+  <script src="js/rolecheck.js"></script>
   <script>
-    async function loadSummary(){
-      const companies = await api.get('/companies');
-      const vendors = await api.get('/vendors');
-      const transactions = await api.get('/transactions');
-      document.getElementById('totalCompanies').innerText = `Companies: ${companies.length}`;
-      document.getElementById('totalVendors').innerText = `Vendors: ${vendors.length}`;
-      document.getElementById('totalTransactions').innerText = `Transactions: ${transactions.length}`;
+    // 🧱 Helper to safely update elements
+    function safeSet(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
     }
-    loadSummary();
+
+    // 🧠 Dashboard Loader
+    async function loadDashboard() {
+      try {
+        const res = await fetch('/api/user-dashboard', { credentials: 'include' });
+        const data = await res.json();
+
+        safeSet('creditCount', data.totalCredit || 0);
+        safeSet('debitCount', data.totalDebit || 0);
+        safeSet('netBalance', '₹' + (data.netBalance || 0).toLocaleString('en-IN'));
+        safeSet('pendingCount', data.pending || 0);
+
+        // Pie Chart
+        const ctx1 = document.getElementById('creditDebitChart');
+        if (ctx1) {
+          new Chart(ctx1, {
+            type: 'doughnut',
+            data: {
+              labels: ['Credit', 'Debit'],
+              datasets: [{
+                data: [data.totalCredit || 0, data.totalDebit || 0],
+                backgroundColor: ['#2563EB', '#F59E0B']
+              }]
+            },
+            options: {
+              responsive: true,
+              cutout: '65%',
+              plugins: { legend: { position: 'bottom' } }
+            }
+          });
+        }
+
+        // Bar Chart
+        const ctx2 = document.getElementById('monthlyTrend');
+        if (ctx2) {
+          new Chart(ctx2, {
+            type: 'bar',
+            data: {
+              labels: ['Credits', 'Debits'],
+              datasets: [{
+                label: 'Total',
+                data: [data.totalCreditAmount || 0, data.totalDebitAmount || 0],
+                backgroundColor: ['#2563EB', '#F59E0B']
+              }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+          });
+        }
+
+        // Recent Notes
+        const tbody = document.getElementById('recentNotes');
+        if (tbody) {
+          tbody.innerHTML = '';
+          (data.recent || []).forEach(n => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="p-2">${n.Transaction_ID || '-'}</td>
+              <td class="p-2">${n.Type || '-'}</td>
+              <td class="p-2">${n.Date || '-'}</td>
+              <td class="p-2">${n.Company_ID || n.Vendor_ID || '-'}</td>
+              <td class="p-2">₹${(parseFloat(n.Total_Amount || 0)).toLocaleString('en-IN')}</td>
+              <td class="p-2 ${
+                (n.Status || '').toLowerCase().startsWith('pending') ? 'text-yellow-600' :
+                (n.Status || '').toLowerCase().startsWith('approved') ? 'text-green-600' :
+                'text-gray-600'
+              }">${n.Status || '-'}</td>`;
+            tbody.appendChild(tr);
+          });
+        }
+      } catch (err) {
+        console.error('Dashboard load failed:', err);
+      }
+    }
+
+    // 🧑‍💻 Update Sidebar Header with Emoji + Name
+    function updateUserHeader(user) {
+      const emojiEl = document.getElementById('userEmoji');
+      const nameEl = document.getElementById('userNameHeader');
+      if (emojiEl && nameEl && user) {
+        let emoji = '🙂';
+        if (user.Role && user.Role.toLowerCase().includes('admin')) emoji = '👑';
+        else if (user.Role && user.Role.toLowerCase().includes('manager')) emoji = '🧑‍💼';
+        emojiEl.textContent = emoji;
+        nameEl.textContent = user.Name || user.Email || 'User';
+      }
+    }
+
+    // 🧑 User Info
+    async function loadUser() {
+      try {
+        const res = await fetch('/api/session', { credentials: 'include' });
+        const user = await res.json();
+        if (user) {
+          safeSet('adminRole', user.Role || '');
+          updateUserHeader(user);
+
+          const info = document.getElementById('companyInfo');
+          if (info && (user.Role || '').toLowerCase() !== 'admin') {
+            info.textContent = `Company: ${user.Name}`;
+          }
+        }
+      } catch (err) {
+        console.error('User load failed:', err);
+      }
+    }
+
+    async function logout() {
+      await fetch('/api/logout', { credentials: 'include' });
+      window.location.href = 'login.html';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadUser();
+      loadDashboard();
+    });
   </script>
 </body>
 </html>

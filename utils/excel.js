@@ -46,12 +46,40 @@ function ensureDB() {
   }
 }
 
+/* --------------------------------------------------------
+   ✅ Fixed readSheet()
+   - Case-insensitive
+   - Ignores extra spaces
+   - Auto-matches similar names
+   - Logs helpful info
+-------------------------------------------------------- */
 function readSheet(sheetName) {
   ensureDB();
   const workbook = XLSX.readFile(DB_PATH);
-  const ws = workbook.Sheets[sheetName];
-  if (!ws) return [];
-  return XLSX.utils.sheet_to_json(ws, { defval: "" });
+  const availableSheets = workbook.SheetNames.map(s => s.trim().toLowerCase());
+  const targetName = sheetName.trim().toLowerCase();
+
+  let matchedSheetName = workbook.SheetNames.find(
+    s => s.trim().toLowerCase() === targetName
+  );
+
+  // Try partial match if exact not found
+  if (!matchedSheetName) {
+    matchedSheetName = workbook.SheetNames.find(s =>
+      s.trim().toLowerCase().includes(targetName)
+    );
+  }
+
+  if (!matchedSheetName) {
+    console.warn(`⚠️ Sheet "${sheetName}" not found in Excel. Available:`, workbook.SheetNames);
+    return [];
+  }
+
+  const ws = workbook.Sheets[matchedSheetName];
+  const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+  console.log(`✅ Read ${data.length} rows from "${matchedSheetName}"`);
+  return data;
 }
 
 function writeSheet(sheetName, dataArrayOfObjects) {
@@ -59,7 +87,9 @@ function writeSheet(sheetName, dataArrayOfObjects) {
   const workbook = XLSX.readFile(DB_PATH);
   const ws = XLSX.utils.json_to_sheet(dataArrayOfObjects, { skipHeader: false });
   workbook.Sheets[sheetName] = ws;
-  workbook.SheetNames = workbook.SheetNames.includes(sheetName) ? workbook.SheetNames : workbook.SheetNames.concat([sheetName]);
+  workbook.SheetNames = workbook.SheetNames.includes(sheetName)
+    ? workbook.SheetNames
+    : workbook.SheetNames.concat([sheetName]);
   XLSX.writeFile(workbook, DB_PATH);
 }
 

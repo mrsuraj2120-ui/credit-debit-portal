@@ -5,6 +5,13 @@ const companies = require('../controllers/companies');
 const vendors = require('../controllers/vendors');
 const transactions = require('../controllers/transactions');
 const items = require('../controllers/items');
+const users = require('../controllers/users');
+const auth = require('../controllers/auth');
+
+
+// Auth
+router.post('/login', auth.login);
+router.get('/logout', auth.logout);
 
 // Companies
 router.get('/companies', companies.list);
@@ -35,15 +42,17 @@ router.get('/items/:id', items.get);
 router.put('/items/:id', items.update);
 router.delete('/items/:id', items.remove);
 
-
-const users = require('../controllers/users');
-
 // Users
 router.get('/users', users.list);
 router.post('/users', users.create);
 router.get('/users/:id', users.get);
 router.put('/users/:id', users.update);
 router.delete('/users/:id', users.remove);
+
+router.get('/dashboard', transactions.dashboardSummary);
+router.get('/user-dashboard', transactions.userDashboardSummary);
+
+
 
 
 module.exports = router;

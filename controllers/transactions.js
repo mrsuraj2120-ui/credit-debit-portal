@@ -13,6 +13,8 @@ function list(req, res) {
   res.json(rows);
 }
 
+
+
 function create(req, res) {
   // ✅ renamed Date -> Txn_Date to avoid shadowing built-in Date()
   const { Type, Date: Txn_Date, Company_ID, Vendor_ID, Reference_No, Reason, Items, Created_By } = req.body;
@@ -25,7 +27,7 @@ function create(req, res) {
   let total = 0;
   const itemRecords = [];
   (Items || []).forEach((it, idx) => {
-    const itemId = `${id}-ITM${String(idx+1).padStart(3,'0')}`;
+    const itemId = `${id}-ITM${String(idx + 1).padStart(3, '0')}`;
     const qty = Number(it.Quantity || 0);
     const rate = Number(it.Rate || 0);
     const taxPerc = Number(it.Tax_Percentage || 0);
@@ -55,7 +57,7 @@ function create(req, res) {
     Reason: Reason || '',
     Total_Amount: total,
     Status: 'Draft',
-    Created_By: Created_By || '',
+    Created_By: (req.session?.user?.Name) || 'Unknown User',
     Created_At: new Date().toISOString(),
     Approved_By: ''
   };
@@ -97,135 +99,305 @@ function approve(req, res) {
   const idx = rows.findIndex(r => r.Transaction_ID === id);
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
   rows[idx].Status = 'Approved';
-  rows[idx].Approved_By = req.body.approved_by || 'system';
+  rows[idx].Approved_By = req.session?.user?.Name || 'system';
   writeSheet(SHEET, rows);
   res.json({ success: true, data: rows[idx] });
 }
 
+
+
 function generatePDF(req, res) {
   try {
     const id = req.params.id;
-    const rows = readSheet(SHEET);
-    const tx = rows.find(r => r.Transaction_ID === id);
+    const txs = readSheet(SHEET);
+    const tx = txs.find(r => r.Transaction_ID === id);
     if (!tx) return res.status(404).json({ error: 'Transaction not found' });
 
+    const companies = readSheet("Companies");
+    const vendors = readSheet("Vendors");
+
+    const company = companies.find(c => c.Company_ID === tx.Company_ID) || {};
+    const vendor = vendors.find(v => v.Vendor_ID === tx.Vendor_ID) || {};
     const items = readSheet(ITEMS_SHEET).filter(i => i.Transaction_ID === id);
 
-    // Calculate totals
-    let subtotal = 0;
-    let totalTaxAmt = 0;
-    let taxPercent = 0;
-
+    // ---- Totals ----
+    let subtotal = 0, totalTax = 0, taxPercent = 0;
     items.forEach(it => {
       const amt = parseFloat(it.Total_Amount) || 0;
       const taxP = parseFloat(it.Tax_Percentage) || 0;
       subtotal += amt;
-      totalTaxAmt += (amt * taxP) / 100;
-      taxPercent = taxP; // assuming uniform tax
+      totalTax += (amt * taxP) / 100;
+      taxPercent = taxP;
     });
 
-    const grandTotal = subtotal + totalTaxAmt;
+    const grandTotal = subtotal + totalTax;
     const roundedTotal = Math.round(grandTotal);
-    const roundOff = (roundedTotal - grandTotal).toFixed(2);
 
-    // ===== PDF CONFIG =====
-    res.setHeader('Content-Disposition', `attachment; filename=${id}.pdf`);
+    // ---- PDF Setup ----
+    res.setHeader('Content-Disposition', `inline; filename=${id}.pdf`);
     res.setHeader('Content-Type', 'application/pdf');
-    const doc = new PDFDocument({ margin: 30 });
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
     doc.pipe(res);
+    const border = '#000000';
 
-    const blue = '#3F3FBF';
-    const borderGray = '#BFBFBF';
+    // ---- BORDER OUTLINE ----
+    doc.rect(30, 30, 540, 780).strokeColor(border).stroke();
 
-    // ===== HEADER =====
-    doc.rect(30, 30, 540, 40).fill(blue);
-    doc.fillColor('white').fontSize(20).text(tx.Type.toUpperCase() + ' NOTE', 0, 42, { align: 'center' });
-    doc.moveDown(2);
-    doc.fillColor('black').fontSize(10);
+    // ---- HEADER ----
+    const headerTitle = tx.Type && tx.Type.toLowerCase() === "credit" ? "CREDIT NOTE" : "DEBIT NOTE";
+    doc.font('Helvetica-Bold').fontSize(18).text(headerTitle, { align: 'center' });
 
-    const startY = 90;
-    doc.fontSize(11).text(`Business Name : ${tx.Company_ID || ''}`, 40, startY);
-    doc.text(`GSTIN No : ${tx.GSTIN || ''}`, 320, startY);
-    doc.text(`Address : ${tx.Address || ''}`, 40, startY + 15);
-    doc.text(`State : ${tx.State || ''}`, 320, startY + 15);
-    doc.text(`Phone Number : ${tx.Phone || ''}`, 40, startY + 30);
+    // ---- COMPANY INFO ----
+    let y = 80;
+    doc.font('Helvetica-Bold').fontSize(10).text(`FROM :${company.Company_Name || 'COMPANY NAME'}`, 40, y + 1 )
 
-    try {
-      doc.image('public/logo.png', 470, 35, { width: 60 }).stroke();
-    } catch {}
+    doc.font('Helvetica').fontSize(10);
+doc.text(`${company.Address || ''}`, 40, y + 15, { width: 200 });
+y = doc.y + 5;  // move below address automatically
+doc.text(`PHONE :${company.Phone || ''}`, 40, y);
+doc.text(`GSTIN :${company.GSTIN || ''}`, 40, y + 15);
 
-    // ===== RETURN / SHIPPING =====
-    const secY = 150;
-    doc.rect(30, secY, 260, 20).fill(blue);
-    doc.fillColor('white').fontSize(11).text('Return / Credit From', 40, secY + 4);
-    doc.rect(310, secY, 260, 20).fill(blue);
-    doc.text('Shipping From', 320, secY + 4);
 
-    doc.fillColor('black').fontSize(10);
-    doc.text(`Name : ${tx.Vendor_ID || ''}`, 40, secY + 30);
-    doc.text(`Address : ${tx.Vendor_Address || ''}`, 40, secY + 45);
-    doc.text(`Phone No : ${tx.Vendor_Phone || ''}`, 40, secY + 60);
-    doc.text(`GSTIN : ${tx.Vendor_GSTIN || ''}`, 40, secY + 75);
-    doc.text(`State : ${tx.Vendor_State || ''}`, 40, secY + 90);
-    doc.text(`Date : ${tx.Date || ''}`, 320, secY + 30);
-    doc.text(`Credit Note No : ${tx.Transaction_ID}`, 320, secY + 45);
-    doc.text(`Buyer's Ref : ${tx.Buyer_Ref || ''}`, 320, secY + 60);
+    // ---- RIGHT SIDE INFO ----
+    let x = 80;
+    doc.text(`Credit/Debit Note No.: ${tx.Transaction_ID}`, 350, x);
+    doc.text(`Date: ${tx.Date || ''}`, 350, x + 15);
+    doc.text(`Original Invoice No.: ${tx.Reference_No || ''}`, 350, x + 30);
 
-    // ===== ITEMS TABLE =====
-    const tableY = secY + 120;
-    doc.rect(30, tableY, 540, 20).fill(blue);
-    doc.fillColor('white').fontSize(10);
-    doc.text('S.No', 35, tableY + 5);
-    doc.text('Goods Description', 70, tableY + 5);
-    doc.text('HSN', 250, tableY + 5);
-    doc.text('QTY', 310, tableY + 5);
-    doc.text('MRP', 370, tableY + 5);
-    doc.text('Amount', 440, tableY + 5);
+    // ---- CUSTOMER INFO ----
+    doc.font('Helvetica-Bold').fontSize(10).text(`TO :${vendor.Vendor_Name || 'VENDER NAME'}`, 40, y + 90 )
+    doc.font('Helvetica').fontSize(10)
+      doc.font('Helvetica').fontSize(10);
+doc.text(`${vendor.Address || ''}`, 40, y + 105, { width: 200 });
+y = doc.y + 5; // move down dynamically after wrapped address
+doc.text(`GSTIN :${vendor.GSTIN || ''}`, 40, y);
+doc.text(`PHONE :${vendor.Phone || ''}`, 40, y + 15);
 
-    let y = tableY + 25;
-    doc.fillColor('black');
+
+    // ---- ITEM TABLE HEADER ----
+    const tableTop = doc.y + 20;
+    const colWidths = [40, 50, 160, 60, 60, 60, 60];
+    const headers = ['S. No.', 'Description', 'HSN/SAC', 'Quantity', 'Rate', 'Amount'];
+
+    doc.rect(40, tableTop, 520, 20).strokeColor(border).stroke();
+    doc.font('Helvetica-Bold').fontSize(10);
+    doc.text('S. No.', 45, tableTop + 5);
+    doc.text('REASON', 90, tableTop + 5);
+    doc.text('HSN/SAC', 240, tableTop + 5);
+    doc.text('Quantity', 300, tableTop + 5);
+    doc.text('Rate', 370, tableTop + 5);
+    doc.text('Tax Amt', 440, tableTop + 5);
+    doc.text('Amount', 500, tableTop + 5);
+    
+
+    // ---- ITEM ROWS ----
+    let rowY = tableTop + 20;
+    doc.font('Helvetica').fontSize(10);
     items.forEach((it, i) => {
-      doc.rect(30, y - 2, 540, 18).strokeColor(borderGray).stroke();
-      doc.text(String(i + 1), 35, y + 3);
-      doc.text(it.Description || '', 70, y + 3, { width: 160 });
-      doc.text(it.HSN || '', 250, y + 3);
-      doc.text(it.Quantity || '', 310, y + 3);
-      doc.text(it.Rate || '', 370, y + 3);
-      doc.text(it.Total_Amount || '', 440, y + 3);
-      y += 20;
+      doc.rect(40, rowY, 520, 20).strokeColor(border).stroke();
+      doc.text(String(i + 1), 45, rowY + 5);
+      doc.text(it.Description || '', 90, rowY + 5, { width: 140 });
+      doc.text(it.HSN_Code || '', 240, rowY + 5);
+      doc.text(it.Quantity || '', 300, rowY + 5);
+      doc.text(it.Rate || '', 370, rowY + 5);
+      doc.text(it.Tax_Amount || '', 440, rowY + 5);
+      doc.text(it.Total_Amount || '', 500, rowY + 5);
+
+      rowY += 20;
     });
 
-    // ===== TOTAL CALCULATION BOX (Tally Style) =====
-    y += 10;
-    doc.rect(350, y, 220, 90).strokeColor(borderGray).stroke();
-    doc.fontSize(10);
-    doc.text('Subtotal :', 360, y + 5);
-    doc.text(subtotal.toFixed(2), 500, y + 5, { align: 'right' });
-    doc.text(`Tax (${taxPercent}%) :`, 360, y + 20);
-    doc.text(totalTaxAmt.toFixed(2), 500, y + 20, { align: 'right' });
-    doc.text('Grand Total :', 360, y + 35);
-    doc.text(grandTotal.toFixed(2), 500, y + 35, { align: 'right' });
-    doc.text('Round Off :', 360, y + 50);
-    doc.text(roundOff, 500, y + 50, { align: 'right' });
-    doc.text('Net Payable :', 360, y + 65);
-    doc.font('Helvetica-Bold').text(roundedTotal.toFixed(2), 500, y + 65, { align: 'right' });
-    doc.font('Helvetica');
+    // ---- AMOUNT IN WORDS ----
+    const amountY = rowY + 10;
+    doc.font('Helvetica-Bold').text('AMOUNT IN WORDS :', 40, amountY);
+    doc.font('Helvetica').text(numberToWords(roundedTotal).toUpperCase() + ' ONLY', 150, amountY, { width: 200 });
 
-    // ===== BANK DETAILS BOX =====
-    y += 100;
-    doc.rect(30, y, 300, 60).strokeColor(borderGray).stroke();
-    doc.fontSize(10).text('Bank Details', 40, y + 5, { underline: true });
-    doc.text(`Account Name : ${tx.Account_Name || ''}`, 40, y + 20);
-    doc.text(`Account Number : ${tx.Account_Number || ''}`, 40, y + 35);
-    doc.text(`IFSC Code : ${tx.IFSC_Code || ''}`, 40, y + 50);
+    // ---- TOTAL BOX (Fixed Alignment) ----
+    
+const boxWidth = 160;
+const boxHeight = 50;
+const boxX = doc.page.width - boxWidth - 35;
+const boxY = doc.y + 1;
 
-    // End PDF
-    doc.end();
+doc.rect(boxX, boxY, boxWidth, boxHeight).strokeColor(border).stroke();
+
+const labelX = boxX + 10;
+const valueX = boxX + 10; // same left start; width will handle right alignment
+const valueWidth = boxWidth - 20; // right padding = 10px
+
+doc.font('Helvetica').fontSize(10);
+
+// Labels
+doc.text('Total Amount :', labelX, boxY + 5);
+doc.text('Tax Amount :', labelX, boxY + 20);
+doc.text('Taxable Amount :', labelX, boxY + 35);
+
+// Values (aligned cleanly to right edge inside box)
+doc.text(subtotal.toFixed(2), valueX, boxY + 5, { width: valueWidth, align: 'right' });
+doc.text(totalTax.toFixed(2), valueX, boxY + 20, { width: valueWidth, align: 'right' });
+doc.text(grandTotal.toFixed(2), valueX, boxY + 35, { width: valueWidth, align: 'right' });
+
+// ---- SIGNATURE ----
+const sigY = boxY + 140;  // ✅ fixed line
+doc.font('Helvetica').text('for ' + (company.Company_Name || 'COMPANY NAME'), 440, sigY);
+doc.text('Authorized Signature', 450, sigY + 45);
+
+// ---- OUTER BORDER ----
+doc.rect(30, 30, 540, 780).strokeColor(border).stroke();
+doc.end();
+
+
+    // ---- HELPER FUNCTION ----
+    function numberToWords(num) {
+      const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+        'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+      const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+      if ((num = num.toString()).length > 9) return 'Overflow';
+      const n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{3})(\d{2})$/);
+      if (!n) return '';
+      let str = '';
+      str += (Number(n[1]) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + ' Crore ' : '');
+      str += (Number(n[2]) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + ' Lakh ' : '');
+      str += (Number(n[3]) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + ' Thousand ' : '');
+      str += (Number(n[4]) ? (a[n[4][0]] ? a[n[4][0]] + ' ' + a[n[4][1]] : b[n[4][0]] + ' ' + a[n[4][1]]) : '');
+      return str.trim();
+    }
+
   } catch (err) {
     console.error('PDF Generation Error:', err);
     if (!res.headersSent)
-      return res.status(500).json({ error: 'Failed to generate PDF' });
+      res.status(500).json({ error: 'Failed to generate PDF' });
   }
 }
 
-module.exports = { list, create, get, update, approve, generatePDF };
+/* ----------------------------------------------------
+   ✅ Excel-accurate Dashboard Summary
+   (Matches your actual columns exactly)
+---------------------------------------------------- */
+function dashboardSummary(req, res) {
+  try {
+    const rows = readSheet(SHEET);
+  
+
+    if (!rows || !rows.length) {
+      return res.json({
+        totalCredit: 0,
+        totalDebit: 0,
+        totalCreditAmount: 0,
+        totalDebitAmount: 0,
+        netBalance: 0,
+        pending: 0,
+        recent: []
+      });
+    }
+
+    const normalize = (v) => (v || '').toString().trim().toLowerCase();
+
+    // Filter transactions
+    const creditNotes = rows.filter(r => normalize(r.Type).includes('credit'));
+    const debitNotes = rows.filter(r => normalize(r.Type).includes('debit'));
+
+    // Calculate counts
+    const totalCredit = creditNotes.length;
+    const totalDebit = debitNotes.length;
+
+    // Calculate total amounts (clean ₹, commas)
+    const totalCreditAmount = creditNotes.reduce((sum, r) =>
+      sum + (parseFloat((r.Total_Amount || '').toString().replace(/[₹,]/g, '')) || 0), 0);
+    const totalDebitAmount = debitNotes.reduce((sum, r) =>
+      sum + (parseFloat((r.Total_Amount || '').toString().replace(/[₹,]/g, '')) || 0), 0);
+
+    // Net balance
+    const netBalance = totalCreditAmount - totalDebitAmount;
+
+    // Count both Pending and Draft statuses
+    const pending = rows.filter(r => {
+      const s = normalize(r.Status);
+      return s.startsWith('pending') || s.startsWith('draft');
+    }).length;
+
+    // Sort by Created_At date (recent 5)
+    const recent = rows
+      .filter(r => r.Transaction_ID)
+      .sort((a, b) => new Date(b.Created_At) - new Date(a.Created_At))
+      .slice(0, 5);
+
+    res.json({
+      totalCredit,
+      totalDebit,
+      totalCreditAmount,
+      totalDebitAmount,
+      netBalance,
+      pending,
+      recent
+    });
+
+  } catch (err) {
+    console.error('Dashboard summary error:', err);
+    res.status(500).json({ error: 'Failed to load dashboard data' });
+  }
+}
+
+/* ----------------------------------------------------
+   ✅ Excel-accurate User Dashboard (Company/Vendor wise)
+---------------------------------------------------- */
+function userDashboardSummary(req, res) {
+  try {
+    const rows = readSheet(SHEET);
+    const user = req.session.user;
+
+
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const normalize = (v) => (v || '').toString().trim().toLowerCase();
+
+    // Filter only user’s data by Company_ID or Vendor_ID
+    const userTx = rows.filter(r =>
+  normalize(r.Created_By) === normalize(user.Name) ||
+  normalize(r.Approved_By) === normalize(user.Name)
+);
+
+
+    // Credit / Debit Filters
+    const creditNotes = userTx.filter(r => normalize(r.Type).includes('credit'));
+    const debitNotes = userTx.filter(r => normalize(r.Type).includes('debit'));
+
+    // Totals
+    const totalCredit = creditNotes.length;
+    const totalDebit = debitNotes.length;
+
+    const totalCreditAmount = creditNotes.reduce((sum, r) =>
+      sum + (parseFloat((r.Total_Amount || '').toString().replace(/[₹,]/g, '')) || 0), 0);
+    const totalDebitAmount = debitNotes.reduce((sum, r) =>
+      sum + (parseFloat((r.Total_Amount || '').toString().replace(/[₹,]/g, '')) || 0), 0);
+
+    const netBalance = totalCreditAmount - totalDebitAmount;
+
+    // ✅ FIXED: Pending count for THIS USER ONLY
+    const pending = userTx.filter(r => {
+      const s = normalize(r.Status);
+      return s.startsWith('pending') || s.startsWith('draft');
+    }).length;
+
+    // ✅ Recent 5 user transactions
+    const recent = userTx
+      .filter(r => r.Transaction_ID)
+      .sort((a, b) => new Date(b.Created_At) - new Date(a.Created_At))
+      .slice(0, 5);
+
+    res.json({
+      totalCredit,
+      totalDebit,
+      totalCreditAmount,
+      totalDebitAmount,
+      netBalance,
+      pending,
+      recent
+    });
+  } catch (err) {
+    console.error('User dashboard error:', err);
+    res.status(500).json({ error: 'Failed to load user dashboard data' });
+  }
+}
+
+
+module.exports = { list, create, get, update, approve, generatePDF, dashboardSummary, userDashboardSummary };
