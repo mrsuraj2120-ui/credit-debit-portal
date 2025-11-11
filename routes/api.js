@@ -38,6 +38,7 @@ router.get('/transactions/:id/pdf', transactions.generatePDF);
 // Items
 router.get('/items', items.list);
 router.post('/items', items.create);
+router.get('/items/unique', items.getUnique);
 router.get('/items/:id', items.get);
 router.put('/items/:id', items.update);
 router.delete('/items/:id', items.remove);

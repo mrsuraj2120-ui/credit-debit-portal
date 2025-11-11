@@ -23,6 +23,8 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // ✅ Secure session configuration (works perfectly on Render)
+const isProduction = process.env.NODE_ENV === 'production';
+
 app.use(session({
   name: 'cid',
   secret: process.env.SESSION_SECRET || 'change_this_secret',
@@ -30,9 +32,9 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // true on HTTPS
-    sameSite: 'none', // allows frontend & backend on different domains
-    maxAge: 1000 * 60 * 60 * 6 // 6 hours
+    secure: isProduction,                           // ❌ false on localhost
+    sameSite: isProduction ? 'none' : 'lax',        // ✅ 'lax' for local
+    maxAge: 1000 * 60 * 60 * 6
   }
 }));
 

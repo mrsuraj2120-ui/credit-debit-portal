@@ -37,9 +37,11 @@
         <input type="text" placeholder="Search..." class="border p-2 rounded w-60 shadow-sm">
       </div>
 
+      <!-- Create Transaction -->
       <div class="bg-white p-6 rounded-xl shadow mb-8">
-        <h2 class="text-lg font-semibold mb-4">Create Transaction</h2>
+        <h2 class="text-lg font-semibold mb-4">Create Debit / Credit note</h2>
 
+        <!-- Selects -->
         <div class="grid grid-cols-4 gap-4 mb-4">
           <select id="type" class="border p-2 rounded">
             <option>Debit</option>
@@ -49,12 +51,12 @@
           
           <!-- Company Dropdown -->
           <select id="tcompany" class="border p-2 rounded" onchange="handleCompanySelect(this.value)">
-            <option value="">--Select Company--</option>
+            <option value="">--Select--</option>
           </select>
 
           <!-- Vendor Dropdown -->
           <select id="tvendor" class="border p-2 rounded" onchange="handleVendorSelect(this.value)">
-            <option value="">--Select Vendor--</option>
+            <option value="">--Select--</option>
           </select>
         </div>
 
@@ -68,7 +70,7 @@
             <input id="newCompanyPhone" placeholder="Phone" class="border p-2 rounded" />
             <input id="newCompanyAddress" placeholder="Address" class="border p-2 rounded col-span-3" />
           </div>
-          <button class="bg-green-600 text-white px-3 py-1 rounded" onclick="addNewCompany()">Add Company</button>
+          <button class="bg-green-600 text-white px-3 py-1 rounded" onclick="addNewCompany()">Add</button>
         </div>
 
         <div id="newVendorForm" class="hidden bg-gray-50 p-4 rounded-lg mb-4 border border-gray-200">
@@ -80,7 +82,7 @@
             <input id="newVendorPhone" placeholder="Phone" class="border p-2 rounded" />
             <input id="newVendorAddress" placeholder="Address" class="border p-2 rounded col-span-3" />
           </div>
-          <button class="bg-green-600 text-white px-3 py-1 rounded" onclick="addNewVendor()">Add Vendor</button>
+          <button class="bg-green-600 text-white px-3 py-1 rounded" onclick="addNewVendor()">Add</button>
         </div>
 
         <!-- Items -->
@@ -90,46 +92,70 @@
           <button class="bg-blue-600 text-white px-3 py-1 rounded mt-2" onclick="addItemRow()">+ Add Item</button>
         </div>
 
-        <button class="bg-green-600 text-white px-4 py-2 rounded" onclick="createTransaction()">Save Transaction</button>
+        <button class="bg-green-600 text-white px-4 py-2 rounded" onclick="createTransaction()">Save</button>
       </div>
 
       <!-- Existing Transactions -->
       <div class="bg-white p-6 rounded-xl shadow-lg">
-  <h2 class="text-lg font-semibold mb-4 text-gray-800">Existing Transactions</h2>
-
-  <div class="overflow-x-auto rounded-lg border border-gray-200">
-    <table class="min-w-full text-sm text-left border-collapse">
-      <thead class="bg-gray-50 border-b border-gray-200">
-        <tr>
-          <th class="px-4 py-2 font-semibold text-gray-700">ID</th>
-          <th class="px-4 py-2 font-semibold text-gray-700">Type</th>
-          <th class="px-4 py-2 font-semibold text-gray-700">Date</th>
-          <th class="px-4 py-2 font-semibold text-gray-700">From</th>
-          <th class="px-4 py-2 font-semibold text-gray-700">To</th>
-          <th class="px-4 py-2 font-semibold text-gray-700 text-right">Total (with tax included)</th>
-          <th class="px-4 py-2 font-semibold text-gray-700 text-center">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="transTable" class="divide-y divide-gray-100 bg-white"></tbody>
-    </table>
+        <h2 class="text-lg font-semibold mb-4 text-gray-800">Created debit / credit notes</h2>
+        <div class="overflow-x-auto rounded-lg border border-gray-200">
+          <table class="min-w-full text-sm text-left border-collapse">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-4 py-2 font-semibold text-gray-700">ID</th>
+                <th class="px-4 py-2 font-semibold text-gray-700">Type</th>
+                <th class="px-4 py-2 font-semibold text-gray-700">Date</th>
+                <th class="px-4 py-2 font-semibold text-gray-700">From</th>
+                <th class="px-4 py-2 font-semibold text-gray-700">To</th>
+                <th class="px-4 py-2 font-semibold text-gray-700 text-right">Total (with tax included)</th>
+                <th class="px-4 py-2 font-semibold text-gray-700 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="transTable" class="divide-y divide-gray-100 bg-white"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
   </div>
-</div>
 
+  <!-- ==================== SCRIPTS ==================== -->
   <script src="js/api.js"></script>
   <script>
-    // 👇 Existing logic stays
+    let uniqueParticulars = [];
+    let uniqueRemarks = [];
+
+    // ✅ Load unique values from backend
+    async function loadUniqueItemValues() {
+      try {
+        const res = await fetch('/api/items/unique');
+        const data = await res.json();
+        uniqueParticulars = data.Particulars || [];
+        uniqueRemarks = data.Remarks || [];
+      } catch (err) {
+        console.error('Failed to load unique values:', err);
+      }
+    }
+
+    // ✅ Create item input with autocomplete
     function createItemElement() {
       const wrapper = document.createElement('div');
       wrapper.className = 'grid grid-cols-5 gap-2 mb-2';
       wrapper.innerHTML = `
-        <input placeholder="Description" class="border p-2 rounded it-desc" />
-        <input placeholder="HSN" class="border p-2 rounded it-hsn" />
+        <input list="particularList" placeholder="Particular" class="border p-2 rounded it-particular" />
+        <datalist id="particularList">
+          ${uniqueParticulars.map(v => `<option value="${v}"></option>`).join('')}
+        </datalist>
+        <input list="remarkList" placeholder="Remarks" class="border p-2 rounded it-remarks" />
+        <datalist id="remarkList">
+          ${uniqueRemarks.map(v => `<option value="${v}"></option>`).join('')}
+        </datalist>
         <input placeholder="Qty" type="number" class="border p-2 rounded it-qty" />
         <input placeholder="Rate" type="number" class="border p-2 rounded it-rate" />
         <input placeholder="Tax%" type="number" class="border p-2 rounded it-tax" />
       `;
       return wrapper;
     }
+
     function addItemRow() {
       document.getElementById('itemsContainer').appendChild(createItemElement());
     }
@@ -139,21 +165,19 @@
       const vendors = await api.get('/vendors');
       const compSel = document.getElementById('tcompany');
       const vendSel = document.getElementById('tvendor');
-      compSel.innerHTML = '<option value="">--Select Company--</option>';
-      vendSel.innerHTML = '<option value="">--Select Vendor--</option>';
-      companies.forEach(c => { compSel.innerHTML += `<option value="${c.Company_ID}">${c.Company_Name}</option>`; });
-      vendors.forEach(v => { vendSel.innerHTML += `<option value="${v.Vendor_ID}">${v.Vendor_Name}</option>`; });
-      compSel.innerHTML += `<option value="new">➕ New Company</option>`;
-      vendSel.innerHTML += `<option value="new">➕ New Vendor</option>`;
+      compSel.innerHTML = '<option value="">--Select--</option>';
+      vendSel.innerHTML = '<option value="">--Select--</option>';
+      companies.forEach(c => compSel.innerHTML += `<option value="${c.Company_ID}">${c.Company_Name}</option>`);
+      vendors.forEach(v => vendSel.innerHTML += `<option value="${v.Vendor_ID}">${v.Vendor_Name}</option>`);
+      compSel.innerHTML += `<option value="new">➕ New</option>`;
+      vendSel.innerHTML += `<option value="new">➕ New</option>`;
       window.companyMap = Object.fromEntries(companies.map(c => [c.Company_ID, c.Company_Name]));
       window.vendorMap = Object.fromEntries(vendors.map(v => [v.Vendor_ID, v.Vendor_Name]));
     }
 
-    // ✅ Form toggle handlers
     function handleCompanySelect(v) { document.getElementById('newCompanyForm').classList.toggle('hidden', v !== 'new'); }
     function handleVendorSelect(v) { document.getElementById('newVendorForm').classList.toggle('hidden', v !== 'new'); }
 
-    // ✅ Add Company
     async function addNewCompany() {
       const Company_Name = newCompanyName.value.trim();
       const GSTIN = newCompanyGST.value.trim();
@@ -168,7 +192,6 @@
       newCompanyForm.classList.add('hidden');
     }
 
-    // ✅ Add Vendor
     async function addNewVendor() {
       const Vendor_Name = newVendorName.value.trim();
       const GSTIN = newVendorGST.value.trim();
@@ -184,22 +207,32 @@
     }
 
     async function createTransaction() {
-      const Type = type.value;
-      const Date = tdate.value || new Date().toISOString();
-      const Company_ID = tcompany.value;
-      const Vendor_ID = tvendor.value;
-      const itemsEls = document.querySelectorAll('#itemsContainer .grid');
-      const Items = Array.from(itemsEls).map(el => ({
-        Description: el.querySelector('.it-desc').value,
-        HSN_Code: el.querySelector('.it-hsn').value,
-        Quantity: el.querySelector('.it-qty').value || 0,
-        Rate: el.querySelector('.it-rate').value || 0,
-        Tax_Percentage: el.querySelector('.it-tax').value || 0
-      }));
-      await api.post('/transactions', { Type, Date, Company_ID, Vendor_ID, Items });
-      alert('Transaction created successfully ✅');
-      loadTransactions();
-    }
+  const Type = type.value;
+  const Date = tdate.value || new Date().toISOString();
+  const Company_ID = tcompany.value;
+  const Vendor_ID = tvendor.value;
+  const itemsEls = document.querySelectorAll('#itemsContainer .grid');
+  const Items = Array.from(itemsEls).map(el => ({
+    Description: el.querySelector('.it-particular').value,
+    HSN_Code: el.querySelector('.it-remarks').value,
+    Quantity: el.querySelector('.it-qty').value || 0,
+    Rate: el.querySelector('.it-rate').value || 0,
+    Tax_Percentage: el.querySelector('.it-tax').value || 0
+  }));
+
+  await api.post('/transactions', { Type, Date, Company_ID, Vendor_ID, Items });
+  alert('Transaction created successfully ✅');
+  loadTransactions();
+
+  // 🧹 Clear all fields after save
+  tdate.value = '';
+  tcompany.value = '';
+  tcompany.selectedIndex = 0;
+  tvendor.value = '';
+  tvendor.selectedIndex = 0;
+  document.getElementById('itemsContainer').innerHTML = ''; // clear old rows
+  addItemRow(); // add one empty new row for next entry
+}
 
     async function loadTransactions() {
       const rows = await api.get('/transactions');
@@ -217,7 +250,7 @@
             <td class="p-2">${cName}</td>
             <td class="p-2">${vName}</td>
             <td class="p-2 text-right">₹${total}</td>
-            <td class="p-2">
+            <td class="p-2 text-center">
               <a href="/api/transactions/${r.Transaction_ID}/pdf" target="_blank"
                 class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs shadow">🧾 View PDF</a>
             </td>
@@ -227,7 +260,12 @@
 
     function logout() { fetch('/api/logout', { credentials: 'include' }); window.location.href = 'login.html'; }
 
-    document.addEventListener('DOMContentLoaded', async () => { await loadSelects(); addItemRow(); loadTransactions(); });
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadUniqueItemValues();
+      await loadSelects();
+      addItemRow();
+      loadTransactions();
+    });
   </script>
 
   <script src="js/rolecheck.js"></script>

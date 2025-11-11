@@ -11,12 +11,18 @@ function list(req, res) {
   res.json(rows);
 }
 
-// 🔹 Create a new item
+// 🔹 Create a new item (✅ Modified: support for new Particular/Remarks auto-save)
 function create(req, res) {
-  const { Transaction_ID, Description, HSN_Code, Quantity, Rate, Tax_Percentage } = req.body;
+  const {
+    Transaction_ID,
+    Description, // ✅ Will be treated as Particular
+    HSN_Code,    // ✅ Will be treated as Remarks
+    Quantity,
+    Rate,
+    Tax_Percentage
+  } = req.body;
 
   const id = nextSequential(SHEET, ID_FIELD, 'ITM');
-
   const qty = Number(Quantity || 0);
   const rate = Number(Rate || 0);
   const taxPerc = Number(Tax_Percentage || 0);
@@ -26,8 +32,8 @@ function create(req, res) {
   const obj = {
     Item_ID: id,
     Transaction_ID: Transaction_ID || '',
-    Description: Description || '',
-    HSN_Code: HSN_Code || '',
+    Particular: Description || '', // ✅ Renamed field logic
+    Remarks: HSN_Code || '',       // ✅ Renamed field logic
     Quantity: qty,
     Rate: rate,
     Tax_Percentage: taxPerc,
@@ -36,7 +42,27 @@ function create(req, res) {
   };
 
   appendRow(SHEET, obj);
+
   res.json({ success: true, data: obj });
+}
+
+// 🔹 Get unique Particular & Remarks values
+function getUnique(req, res) {
+  try {
+    const rows = readSheet(SHEET);
+
+    // Extract unique non-empty values
+    const particulars = [...new Set(rows.map(r => (r.Particular || r.Description || '').trim()).filter(v => v))];
+    const remarks = [...new Set(rows.map(r => (r.Remarks || r.HSN_Code || '').trim()).filter(v => v))];
+
+    res.json({
+      Particulars: particulars.sort(),
+      Remarks: remarks.sort()
+    });
+  } catch (err) {
+    console.error('Error reading unique items:', err);
+    res.status(500).json({ error: 'Failed to read unique values' });
+  }
 }
 
 // 🔹 Get item by ID
@@ -71,4 +97,5 @@ function remove(req, res) {
   res.json({ success: true });
 }
 
-module.exports = { list, create, get, update, remove };
+// ✅ Export all functions
+module.exports = { list, create, get, update, remove, getUnique };
