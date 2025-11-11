@@ -1,40 +1,76 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Login - Debit Credit Portal</title>
-  <link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8">
+  <title>Login - Credit/Debit Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <div class="container" style="max-width:400px; margin-top:100px;">
-    <div class="card">
-      <h2>Secure Login</h2>
-      <input id="email" placeholder="Email" style="width:100%; padding:10px;" />
-      <input id="password" type="password" placeholder="Password" style="width:100%; padding:10px; margin-top:10px;" />
-      <button class="btn" style="margin-top:15px; width:100%;" onclick="login()">Login</button>
+
+<body class="min-h-screen bg-gray-100 text-gray-800 flex items-center justify-center">
+
+  <!-- Login Card -->
+  <div class="bg-white shadow-lg rounded-xl p-8 w-full max-w-md border border-gray-200">
+    <div class="text-center mb-6">
+      <h1 class="text-2xl font-bold text-gray-800">Welcome Back 👋</h1>
+      <p class="text-sm text-gray-500">Sign in to continue</p>
+    </div>
+
+    <div class="space-y-4">
+      <div>
+        <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
+        <input id="email" type="email" placeholder="you@example.com"
+          class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+
+      <div>
+        <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+        <input id="password" type="password" placeholder="••••••••"
+          class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+
+      <div class="flex items-center justify-between text-sm mt-2">
+        <a href="forgot.html" class="text-blue-600 hover:text-blue-700 font-medium">Forgot Password?</a>
+      </div>
+
+      <button onclick="login()"
+        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg shadow transition">
+        Login
+      </button>
+
+      <p class="text-center text-sm mt-3 text-gray-600">
+        Don't have an account?
+        <a href="signup.html" class="text-blue-600 hover:text-blue-700 font-semibold">Sign Up</a>
+      </p>
     </div>
   </div>
 
+  <!-- JS -->
   <script>
     async function login() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
       if (!email || !password) return alert('Please enter both fields');
 
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        credentials: 'include', // send session cookies
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-      if (data.success) {
-        if (data.user.Role === 'Admin') window.location.href = 'admin.html';
-        else window.location.href = 'index.html';
-      } else {
-        alert(data.error || 'Login failed');
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (data.success) {
+          if (data.user.Role === 'Admin') window.location.href = 'admin.html';
+          else window.location.href = 'index.html';
+        } else {
+          alert(data.error || 'Login failed');
+        }
+      } catch (err) {
+        console.error('Login error:', err);
+        alert('Unable to connect to server.');
       }
     }
   </script>
+
 </body>
 </html>
