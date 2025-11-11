@@ -7,14 +7,22 @@ const path = require('path');
 const apiRoutes = require('./routes/api');
 
 const app = express();
+
+// ✅ Required when running behind Render proxy (enables secure cookies)
+app.set('trust proxy', 1);
+
+// ✅ Allow your frontend Render domain to access backend with cookies
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://credit-debit-portal12.onrender.com'; // <-- change if different
+
 app.use(cors({
-  origin: true,
+  origin: FRONTEND_URL,
   credentials: true
 }));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Session (memory store) - fine for demo; use Redis or DB for production
+// ✅ Secure session configuration (works perfectly on Render)
 app.use(session({
   name: 'cid',
   secret: process.env.SESSION_SECRET || 'change_this_secret',
@@ -22,26 +30,27 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // set true on HTTPS
+    secure: process.env.NODE_ENV === 'production', // true on HTTPS
+    sameSite: 'none', // allows frontend & backend on different domains
     maxAge: 1000 * 60 * 60 * 6 // 6 hours
   }
 }));
 
-// Serve frontend static
+// ✅ Serve frontend static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API prefix
+// ✅ API routes
 app.use('/api', apiRoutes);
 
-// session info endpoint (client can call to know logged-in user)
+// ✅ Session info endpoint (frontend can use this to check login)
 app.get('/api/session', (req, res) => {
   res.json(req.session.user || null);
 });
 
-// fallback: send index
+// ✅ Fallback route for SPA (always send index.html)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
