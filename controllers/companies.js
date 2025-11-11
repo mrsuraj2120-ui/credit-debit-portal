@@ -30,14 +30,16 @@ function get(req, res) {
   }
 }
 
-// 🔹 Create new company (Admin only)
+// 🔹 Create new company (✅ Modified: Allow non-admin also)
 function create(req, res) {
-  if (!req.session.user || req.session.user.Role !== 'Admin') {
-    return res.status(403).json({ error: 'Access denied' });
-  }
-
   try {
+    const user = req.session.user;
+    const isAdmin = user && user.Role === 'Admin';
+
+    // ✅ Non-admin users can add, but admin check removed
     const { Company_Name, Address, GSTIN, Email, Phone } = req.body;
+    if (!Company_Name) return res.status(400).json({ error: 'Company name required' });
+
     const id = nextSequential(SHEET, ID_FIELD, 'CMP');
     const obj = {
       Company_ID: id,
@@ -46,9 +48,13 @@ function create(req, res) {
       GSTIN: GSTIN || '',
       Email: Email || '',
       Phone: Phone || '',
+      Created_By: user ? user.Name : 'System',
       Created_At: new Date().toISOString()
     };
+
     appendRow(SHEET, obj);
+
+    // ✅ Important: Return object directly for frontend auto-select
     res.json({ success: true, data: obj });
   } catch (err) {
     console.error('Error creating company:', err);

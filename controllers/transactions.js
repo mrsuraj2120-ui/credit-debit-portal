@@ -36,6 +36,7 @@ function create(req, res) {
     total += lineTotal;
     itemRecords.push({
       Item_ID: itemId,
+      
       Transaction_ID: id,
       Description: it.Description || '',
       HSN_Code: it.HSN_Code || '',
@@ -275,65 +276,56 @@ doc.end();
 ---------------------------------------------------- */
 function dashboardSummary(req, res) {
   try {
-    const rows = readSheet(SHEET);
-  
+    const { readSheet } = require('../utils/excel');
+    const SHEET = 'Transactions';
+    const user = req.session?.user || {};
 
-    if (!rows || !rows.length) {
-      return res.json({
-        totalCredit: 0,
-        totalDebit: 0,
-        totalCreditAmount: 0,
-        totalDebitAmount: 0,
-        netBalance: 0,
-        pending: 0,
-        recent: []
-      });
+    const allTx = readSheet(SHEET) || [];
+
+    // 🧩 Admin → all transactions
+    // 🧩 Non-admin → filter based on company or creator
+    let dataToUse = allTx;
+    if (user.Role !== 'Admin') {
+      dataToUse = allTx.filter(
+        t =>
+          t.Company_ID === user.Company_ID ||
+          t.Created_By === user.Email ||
+          t.User_ID === user.User_ID
+      );
     }
 
-    const normalize = (v) => (v || '').toString().trim().toLowerCase();
+    // ✅ Calculations
+    const totalCredit = dataToUse.filter(t => t.Type === 'Credit').length;
+    const totalDebit = dataToUse.filter(t => t.Type === 'Debit').length;
 
-    // Filter transactions
-    const creditNotes = rows.filter(r => normalize(r.Type).includes('credit'));
-    const debitNotes = rows.filter(r => normalize(r.Type).includes('debit'));
+    const totalCreditAmount = dataToUse
+      .filter(t => t.Type === 'Credit')
+      .reduce((a, b) => a + Number(b.Total_Amount || 0), 0);
+    const totalDebitAmount = dataToUse
+      .filter(t => t.Type === 'Debit')
+      .reduce((a, b) => a + Number(b.Total_Amount || 0), 0);
 
-    // Calculate counts
-    const totalCredit = creditNotes.length;
-    const totalDebit = debitNotes.length;
-
-    // Calculate total amounts (clean ₹, commas)
-    const totalCreditAmount = creditNotes.reduce((sum, r) =>
-      sum + (parseFloat((r.Total_Amount || '').toString().replace(/[₹,]/g, '')) || 0), 0);
-    const totalDebitAmount = debitNotes.reduce((sum, r) =>
-      sum + (parseFloat((r.Total_Amount || '').toString().replace(/[₹,]/g, '')) || 0), 0);
-
-    // Net balance
     const netBalance = totalCreditAmount - totalDebitAmount;
+    const pending = dataToUse.filter(t => {
+  const s = (t.Status || '').toLowerCase();
+  return s.includes('pending') || s.includes('awaiting') || s.includes('draft');
+}).length;
 
-    // Count both Pending and Draft statuses
-    const pending = rows.filter(r => {
-      const s = normalize(r.Status);
-      return s.startsWith('pending') || s.startsWith('draft');
-    }).length;
 
-    // Sort by Created_At date (recent 5)
-    const recent = rows
-      .filter(r => r.Transaction_ID)
-      .sort((a, b) => new Date(b.Created_At) - new Date(a.Created_At))
-      .slice(0, 5);
+    const recent = dataToUse.slice(-10).reverse();
 
-    res.json({
+    return res.json({
       totalCredit,
       totalDebit,
       totalCreditAmount,
       totalDebitAmount,
       netBalance,
       pending,
-      recent
+      recent,
     });
-
   } catch (err) {
-    console.error('Dashboard summary error:', err);
-    res.status(500).json({ error: 'Failed to load dashboard data' });
+    console.error('Dashboard Summary Error:', err);
+    res.status(500).json({ error: 'Failed to load dashboard summary' });
   }
 }
 

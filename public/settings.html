@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Settings - Credit/Debit Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <div class="flex">
+    <!-- Sidebar -->
+    <aside class="w-64 h-screen bg-gray-900 text-white flex flex-col p-4 space-y-6 sticky top-0">
+      <h2 class="text-xl font-bold mb-4 flex items-center space-x-2">
+        <span>⚙️</span><span>Settings</span>
+      </h2>
+      <nav class="flex flex-col space-y-3">
+        <a href="index.html" class="hover:bg-gray-700 p-2 rounded">🏠 Dashboard</a>
+        <a href="companies.html" class="hover:bg-gray-700 p-2 rounded">🏢 Companies</a>
+        <a href="vendors.html" class="hover:bg-gray-700 p-2 rounded">🤝 Vendors</a>
+        <a href="transactions.html" class="hover:bg-gray-700 p-2 rounded">📄 Transactions</a>
+        <a href="items.html" class="hover:bg-gray-700 p-2 rounded">📦 Items</a>
+        <a href="users.html" class="hover:bg-gray-700 p-2 rounded">👤 Users</a>
+        <a href="reports.html" class="hover:bg-gray-700 p-2 rounded">📈 Reports</a>
+        <a href="settings.html" class="hover:bg-gray-700 p-2 rounded bg-gray-700">⚙️ Settings</a>
+      </nav>
+      <div class="mt-auto bg-gray-800 p-3 rounded-lg text-sm">
+        <p class="text-xs opacity-70">Role: <span id="adminRole"></span></p>
+        <button onclick="logout()" class="mt-2 bg-red-600 px-3 py-1 rounded text-xs">Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-8 overflow-y-auto">
+      <h1 class="text-2xl font-bold mb-6">System Settings</h1>
+
+      <div class="grid grid-cols-2 gap-6">
+        <!-- User Profile -->
+        <div class="bg-white p-6 rounded-xl shadow">
+          <h2 class="text-lg font-semibold mb-4">User Profile</h2>
+          <input type="text" id="userName" placeholder="Full Name" class="border p-2 rounded w-full mb-2">
+          <input type="email" id="userEmail" placeholder="Email" class="border p-2 rounded w-full mb-2">
+          <button class="bg-blue-600 text-white px-4 py-2 rounded">Update Profile</button>
+        </div>
+
+        <!-- Theme Settings -->
+        <div class="bg-white p-6 rounded-xl shadow">
+          <h2 class="text-lg font-semibold mb-4">Theme</h2>
+          <label class="flex items-center space-x-3">
+            <input type="checkbox" id="themeToggle" class="h-5 w-5">
+            <span>Dark Mode</span>
+          </label>
+        </div>
+
+        <!-- Company Info -->
+        <div class="bg-white p-6 rounded-xl shadow col-span-2">
+          <h2 class="text-lg font-semibold mb-4">Company Information</h2>
+          <div class="grid grid-cols-2 gap-4">
+            <input id="cname" placeholder="Company Name" class="border p-2 rounded">
+            <input id="cgst" placeholder="GSTIN" class="border p-2 rounded">
+            <input id="cemail" placeholder="Company Email" class="border p-2 rounded">
+            <input id="cphone" placeholder="Phone" class="border p-2 rounded">
+            <input id="caddr" placeholder="Address" class="border p-2 rounded col-span-2">
+          </div>
+          <button class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save</button>
+        </div>
+
+        <!-- Backup -->
+        <div class="bg-white p-6 rounded-xl shadow col-span-2">
+          <h2 class="text-lg font-semibold mb-4">Backup & Restore</h2>
+          <div class="flex items-center gap-4">
+            <button class="bg-green-600 text-white px-4 py-2 rounded">Download Backup</button>
+            <input type="file" class="border p-2 rounded">
+            <button class="bg-yellow-600 text-white px-4 py-2 rounded">Restore</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/rolecheck.js"></script>
+  <script>
+    function logout(){window.location.href='login.html';}
+    document.getElementById('themeToggle').addEventListener('change', (e)=>{
+      document.body.classList.toggle('bg-gray-900');
+      document.body.classList.toggle('text-white');
+    });
+  </script>
+</body>
+</html>

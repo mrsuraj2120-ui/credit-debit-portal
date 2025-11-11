@@ -2,37 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>User Dashboard - Credit/Debit Portal</title>
+  <title>Dashboard - Credit/Debit Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="css/style.css">
 </head>
 
 <body class="bg-gray-100 text-gray-800">
   <div class="flex">
-    <!-- Sidebar -->
+    <!-- ✅ Sidebar copied as-is from users.html -->
     <aside class="w-64 h-screen bg-gray-900 text-white flex flex-col p-4 space-y-6 sticky top-0">
-      <h2 id="userHeader" class="text-xl font-bold mb-4 flex items-center space-x-2">
-        <span id="userEmoji">👤</span>
-        <span id="userNameHeader">User</span>
+      <h2 class="text-xl font-bold mb-4 flex items-center space-x-2">
+        <span>🏠</span><span>Dashboard</span>
       </h2>
-
-      <nav class="flex flex-col space-y-3 nav">
-        <a href="index.html" class="hover:bg-gray-700 p-2 rounded">🏠 Dashboard</a>
-        <a href="transactions.html" class="hover:bg-gray-700 p-2 rounded">🧾 Credit Notes</a>
-        <a href="transactions.html" class="hover:bg-gray-700 p-2 rounded">💸 Debit Notes</a>
-        <a href="#" class="hover:bg-gray-700 p-2 rounded">📈 Reports</a>
-        <a href="#" class="hover:bg-gray-700 p-2 rounded">⚙️ Settings</a>
+      <nav class="flex flex-col space-y-3">
+        <a href="index.html" class="hover:bg-gray-700 p-2 rounded bg-gray-700">🏠 Dashboard</a>
+        <a href="companies.html" class="hover:bg-gray-700 p-2 rounded">🏢 Companies</a>
+        <a href="vendors.html" class="hover:bg-gray-700 p-2 rounded">🤝 Vendors</a>
+        <a href="transactions.html" class="hover:bg-gray-700 p-2 rounded">📄 Transactions</a>
+        <a href="items.html" class="hover:bg-gray-700 p-2 rounded">📦 Items</a>
+        <a href="users.html" class="hover:bg-gray-700 p-2 rounded">👤 Users</a>
+        <a href="reports.html" class="hover:bg-gray-700 p-2 rounded">📈 Reports</a>
+        <a href="settings.html" class="hover:bg-gray-700 p-2 rounded">⚙️ Settings</a>
       </nav>
 
-      <!-- User Info -->
+      <!-- ✅ Role + Logout -->
       <div class="mt-auto bg-gray-800 p-3 rounded-lg text-sm">
-        <p class="text-xs opacity-70">Role: <span id="adminRole"></span></p>
+        <p class="text-xs opacity-70">Role : <span id="adminRole">Loading...</span></p>
         <button onclick="logout()" class="mt-2 bg-red-600 px-3 py-1 rounded text-xs">Logout</button>
       </div>
     </aside>
 
-    <!-- Main Dashboard -->
+    <!-- ✅ Dashboard Main Content -->
     <main class="flex-1 p-8 overflow-y-auto">
       <div class="flex justify-between items-center mb-6">
         <h1 class="text-2xl font-bold">Dashboard Overview</h1>
@@ -92,16 +92,16 @@
     </main>
   </div>
 
-  <!-- Scripts -->
+  <!-- ✅ Scripts -->
   <script src="js/rolecheck.js"></script>
   <script>
-    // 🧱 Helper to safely update elements
+    // Helper to safely set text
     function safeSet(id, val) {
       const el = document.getElementById(id);
       if (el) el.textContent = val;
     }
 
-    // 🧠 Dashboard Loader
+    // Dashboard data loader
     async function loadDashboard() {
       try {
         const res = await fetch('/api/user-dashboard', { credentials: 'include' });
@@ -112,7 +112,7 @@
         safeSet('netBalance', '₹' + (data.netBalance || 0).toLocaleString('en-IN'));
         safeSet('pendingCount', data.pending || 0);
 
-        // Pie Chart
+        // Credit vs Debit Pie Chart
         const ctx1 = document.getElementById('creditDebitChart');
         if (ctx1) {
           new Chart(ctx1, {
@@ -132,7 +132,7 @@
           });
         }
 
-        // Bar Chart
+        // Monthly Trend Bar Chart
         const ctx2 = document.getElementById('monthlyTrend');
         if (ctx2) {
           new Chart(ctx2, {
@@ -149,7 +149,7 @@
           });
         }
 
-        // Recent Notes
+        // Recent Notes Table
         const tbody = document.getElementById('recentNotes');
         if (tbody) {
           tbody.innerHTML = '';
@@ -162,8 +162,8 @@
               <td class="p-2">${n.Company_ID || n.Vendor_ID || '-'}</td>
               <td class="p-2">₹${(parseFloat(n.Total_Amount || 0)).toLocaleString('en-IN')}</td>
               <td class="p-2 ${
-                (n.Status || '').toLowerCase().startsWith('pending') ? 'text-yellow-600' :
-                (n.Status || '').toLowerCase().startsWith('approved') ? 'text-green-600' :
+                (n.Status || '').toLowerCase().includes('pending') ? 'text-yellow-600' :
+                (n.Status || '').toLowerCase().includes('approved') ? 'text-green-600' :
                 'text-gray-600'
               }">${n.Status || '-'}</td>`;
             tbody.appendChild(tr);
@@ -174,28 +174,13 @@
       }
     }
 
-    // 🧑‍💻 Update Sidebar Header with Emoji + Name
-    function updateUserHeader(user) {
-      const emojiEl = document.getElementById('userEmoji');
-      const nameEl = document.getElementById('userNameHeader');
-      if (emojiEl && nameEl && user) {
-        let emoji = '🙂';
-        if (user.Role && user.Role.toLowerCase().includes('admin')) emoji = '👑';
-        else if (user.Role && user.Role.toLowerCase().includes('manager')) emoji = '🧑‍💼';
-        emojiEl.textContent = emoji;
-        nameEl.textContent = user.Name || user.Email || 'User';
-      }
-    }
-
-    // 🧑 User Info
+    // Logged-in user info + role
     async function loadUser() {
       try {
         const res = await fetch('/api/session', { credentials: 'include' });
         const user = await res.json();
         if (user) {
-          safeSet('adminRole', user.Role || '');
-          updateUserHeader(user);
-
+          safeSet('adminRole', user.Role || 'User');
           const info = document.getElementById('companyInfo');
           if (info && (user.Role || '').toLowerCase() !== 'admin') {
             info.textContent = `Company: ${user.Name}`;
@@ -206,14 +191,34 @@
       }
     }
 
+    // Logout
     async function logout() {
       await fetch('/api/logout', { credentials: 'include' });
       window.location.href = 'login.html';
     }
 
+    // Initialize on load
     document.addEventListener('DOMContentLoaded', () => {
       loadUser();
       loadDashboard();
+    });
+  </script>
+
+  <!-- ✅ Role fetch script (same as others) -->
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const res = await fetch('/api/session', { credentials: 'include' });
+        const user = await res.json();
+        if (user && user.Role) {
+          document.getElementById('adminRole').textContent = user.Role;
+        } else {
+          document.getElementById('adminRole').textContent = 'User';
+        }
+      } catch (err) {
+        console.error('Failed to load user role:', err);
+        document.getElementById('adminRole').textContent = 'Error';
+      }
     });
   </script>
 </body>

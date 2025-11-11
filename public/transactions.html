@@ -1,116 +1,235 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Transactions</title>
-  <link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8">
+  <title>Transactions - Credit/Debit Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <nav class="nav">
-    <a href="index.html">Dashboard</a>
-    <a href="companies.html">Companies</a>
-    <a href="vendors.html">Vendors</a>
-    <a href="transactions.html">Transactions</a>
-    <a href="items.html">Items</a>
-    <a href="users.html">Users</a>
-  </nav>
 
-  <div class="container">
-    <div class="card">
-      <h2>Create Transaction</h2>
-      <div class="form-row">
-        <select id="type"><option>Debit</option><option>Credit</option></select>
-        <input id="tdate" type="date" />
-        <select id="tcompany"></select>
-        <select id="tvendor"></select>
-      </div>
-      <div class="card">
-        <h4>Items</h4>
-        <div id="itemsContainer"></div>
-        <button class="btn" onclick="addItemRow()">Add Item</button>
-      </div>
-      <div style="margin-top:12px;">
-        <button class="btn" onclick="createTransaction()">Save Transaction</button>
-      </div>
-    </div>
+<body class="bg-gray-100 text-gray-800">
+  <div class="flex">
+    <!-- Sidebar -->
+    <aside class="w-64 h-screen bg-gray-900 text-white flex flex-col p-4 space-y-6 sticky top-0">
+      <h2 class="text-xl font-bold mb-4 flex items-center space-x-2">
+        <span>📄</span><span>Transactions</span>
+      </h2>
+      <nav class="flex flex-col space-y-3">
+        <a href="index.html" class="hover:bg-gray-700 p-2 rounded">🏠 Dashboard</a>
+        <a href="companies.html" class="hover:bg-gray-700 p-2 rounded">🏢 Companies</a>
+        <a href="vendors.html" class="hover:bg-gray-700 p-2 rounded">🤝 Vendors</a>
+        <a href="transactions.html" class="hover:bg-gray-700 p-2 rounded bg-gray-700">📄 Transactions</a>
+        <a href="items.html" class="hover:bg-gray-700 p-2 rounded">📦 Items</a>
+        <a href="users.html" class="hover:bg-gray-700 p-2 rounded">👤 Users</a>
+        <a href="reports.html" class="hover:bg-gray-700 p-2 rounded">📈 Reports</a>
+        <a href="settings.html" class="hover:bg-gray-700 p-2 rounded">⚙️ Settings</a>
+      </nav>
 
-    <div class="card">
-      <h2>Existing Transactions</h2>
-      <table id="transTable">
-        <thead><tr><th>ID</th><th>Type</th><th>Date</th><th>Company</th><th>Vendor</th><th>Total</th><th>Actions</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+      <div class="mt-auto bg-gray-800 p-3 rounded-lg text-sm">
+        <p class="text-xs opacity-70">Role : <span id="adminRole">Loading...</span></p>
+        <button onclick="logout()" class="mt-2 bg-red-600 px-3 py-1 rounded text-xs">Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-8 overflow-y-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold">Transactions</h1>
+        <input type="text" placeholder="Search..." class="border p-2 rounded w-60 shadow-sm">
+      </div>
+
+      <div class="bg-white p-6 rounded-xl shadow mb-8">
+        <h2 class="text-lg font-semibold mb-4">Create Transaction</h2>
+
+        <div class="grid grid-cols-4 gap-4 mb-4">
+          <select id="type" class="border p-2 rounded">
+            <option>Debit</option>
+            <option>Credit</option>
+          </select>
+          <input id="tdate" type="date" class="border p-2 rounded" />
+          
+          <!-- Company Dropdown -->
+          <select id="tcompany" class="border p-2 rounded" onchange="handleCompanySelect(this.value)">
+            <option value="">--Select Company--</option>
+          </select>
+
+          <!-- Vendor Dropdown -->
+          <select id="tvendor" class="border p-2 rounded" onchange="handleVendorSelect(this.value)">
+            <option value="">--Select Vendor--</option>
+          </select>
+        </div>
+
+        <!-- Dynamic Add Forms -->
+        <div id="newCompanyForm" class="hidden bg-gray-50 p-4 rounded-lg mb-4 border border-gray-200">
+          <h4 class="font-semibold mb-2 text-blue-700">➕ Add New Company</h4>
+          <div class="grid grid-cols-3 gap-3 mb-3">
+            <input id="newCompanyName" placeholder="Company Name" class="border p-2 rounded col-span-2" />
+            <input id="newCompanyGST" placeholder="GSTIN" class="border p-2 rounded" />
+            <input id="newCompanyEmail" placeholder="Email" class="border p-2 rounded" />
+            <input id="newCompanyPhone" placeholder="Phone" class="border p-2 rounded" />
+            <input id="newCompanyAddress" placeholder="Address" class="border p-2 rounded col-span-3" />
+          </div>
+          <button class="bg-green-600 text-white px-3 py-1 rounded" onclick="addNewCompany()">Add Company</button>
+        </div>
+
+        <div id="newVendorForm" class="hidden bg-gray-50 p-4 rounded-lg mb-4 border border-gray-200">
+          <h4 class="font-semibold mb-2 text-blue-700">➕ Add New Vendor</h4>
+          <div class="grid grid-cols-3 gap-3 mb-3">
+            <input id="newVendorName" placeholder="Vendor Name" class="border p-2 rounded col-span-2" />
+            <input id="newVendorGST" placeholder="GSTIN" class="border p-2 rounded" />
+            <input id="newVendorEmail" placeholder="Email" class="border p-2 rounded" />
+            <input id="newVendorPhone" placeholder="Phone" class="border p-2 rounded" />
+            <input id="newVendorAddress" placeholder="Address" class="border p-2 rounded col-span-3" />
+          </div>
+          <button class="bg-green-600 text-white px-3 py-1 rounded" onclick="addNewVendor()">Add Vendor</button>
+        </div>
+
+        <!-- Items -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-4">
+          <h4 class="font-semibold mb-2">Items</h4>
+          <div id="itemsContainer"></div>
+          <button class="bg-blue-600 text-white px-3 py-1 rounded mt-2" onclick="addItemRow()">+ Add Item</button>
+        </div>
+
+        <button class="bg-green-600 text-white px-4 py-2 rounded" onclick="createTransaction()">Save Transaction</button>
+      </div>
+
+      <!-- Existing Transactions -->
+      <div class="bg-white p-6 rounded-xl shadow-lg">
+  <h2 class="text-lg font-semibold mb-4 text-gray-800">Existing Transactions</h2>
+
+  <div class="overflow-x-auto rounded-lg border border-gray-200">
+    <table class="min-w-full text-sm text-left border-collapse">
+      <thead class="bg-gray-50 border-b border-gray-200">
+        <tr>
+          <th class="px-4 py-2 font-semibold text-gray-700">ID</th>
+          <th class="px-4 py-2 font-semibold text-gray-700">Type</th>
+          <th class="px-4 py-2 font-semibold text-gray-700">Date</th>
+          <th class="px-4 py-2 font-semibold text-gray-700">From</th>
+          <th class="px-4 py-2 font-semibold text-gray-700">To</th>
+          <th class="px-4 py-2 font-semibold text-gray-700 text-right">Total (with tax included)</th>
+          <th class="px-4 py-2 font-semibold text-gray-700 text-center">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="transTable" class="divide-y divide-gray-100 bg-white"></tbody>
+    </table>
   </div>
+</div>
 
-<script src="js/api.js"></script>
-<script>
-  function createItemElement(idx) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'form-row';
-    wrapper.innerHTML = `
-      <input placeholder="Description" class="it-desc" />
-      <input placeholder="HSN" class="it-hsn" />
-      <input placeholder="Qty" class="it-qty" type="number" />
-      <input placeholder="Rate" class="it-rate" type="number" />
-      <input placeholder="Tax%" class="it-tax" type="number" />
-      <button class="btn" onclick="this.parentElement.remove()">Remove</button>
-    `;
-    return wrapper;
-  }
+  <script src="js/api.js"></script>
+  <script>
+    // 👇 Existing logic stays
+    function createItemElement() {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'grid grid-cols-5 gap-2 mb-2';
+      wrapper.innerHTML = `
+        <input placeholder="Description" class="border p-2 rounded it-desc" />
+        <input placeholder="HSN" class="border p-2 rounded it-hsn" />
+        <input placeholder="Qty" type="number" class="border p-2 rounded it-qty" />
+        <input placeholder="Rate" type="number" class="border p-2 rounded it-rate" />
+        <input placeholder="Tax%" type="number" class="border p-2 rounded it-tax" />
+      `;
+      return wrapper;
+    }
+    function addItemRow() {
+      document.getElementById('itemsContainer').appendChild(createItemElement());
+    }
 
-  function addItemRow(){
-    document.getElementById('itemsContainer').appendChild(createItemElement());
-  }
+    async function loadSelects() {
+      const companies = await api.get('/companies');
+      const vendors = await api.get('/vendors');
+      const compSel = document.getElementById('tcompany');
+      const vendSel = document.getElementById('tvendor');
+      compSel.innerHTML = '<option value="">--Select Company--</option>';
+      vendSel.innerHTML = '<option value="">--Select Vendor--</option>';
+      companies.forEach(c => { compSel.innerHTML += `<option value="${c.Company_ID}">${c.Company_Name}</option>`; });
+      vendors.forEach(v => { vendSel.innerHTML += `<option value="${v.Vendor_ID}">${v.Vendor_Name}</option>`; });
+      compSel.innerHTML += `<option value="new">➕ New Company</option>`;
+      vendSel.innerHTML += `<option value="new">➕ New Vendor</option>`;
+      window.companyMap = Object.fromEntries(companies.map(c => [c.Company_ID, c.Company_Name]));
+      window.vendorMap = Object.fromEntries(vendors.map(v => [v.Vendor_ID, v.Vendor_Name]));
+    }
 
-  async function loadSelects(){
-    const companies = await api.get('/companies');
-    const vendors = await api.get('/vendors');
-    const compSel = document.getElementById('tcompany');
-    const vendSel = document.getElementById('tvendor');
-    compSel.innerHTML = '<option value="">--Select Company--</option>';
-    vendSel.innerHTML = '<option value="">--Select Vendor--</option>';
-    companies.forEach(c => { const o = document.createElement('option'); o.value = c.Company_ID; o.text = c.Company_Name; compSel.appendChild(o); });
-    vendors.forEach(v => { const o = document.createElement('option'); o.value = v.Vendor_ID; o.text = v.Vendor_Name; vendSel.appendChild(o); });
-  }
+    // ✅ Form toggle handlers
+    function handleCompanySelect(v) { document.getElementById('newCompanyForm').classList.toggle('hidden', v !== 'new'); }
+    function handleVendorSelect(v) { document.getElementById('newVendorForm').classList.toggle('hidden', v !== 'new'); }
 
-  async function createTransaction(){
-    const Type = document.getElementById('type').value;
-    const Date = document.getElementById('tdate').value || new Date().toISOString();
-    const Company_ID = document.getElementById('tcompany').value;
-    const Vendor_ID = document.getElementById('tvendor').value;
-    const itemsEls = document.querySelectorAll('#itemsContainer .form-row');
-    const Items = Array.from(itemsEls).map(el => ({
-      Description: el.querySelector('.it-desc').value,
-      HSN_Code: el.querySelector('.it-hsn').value,
-      Quantity: el.querySelector('.it-qty').value || 0,
-      Rate: el.querySelector('.it-rate').value || 0,
-      Tax_Percentage: el.querySelector('.it-tax').value || 0
-    }));
-    const payload = { Type, Date, Company_ID, Vendor_ID, Items, Created_By: 'webuser' };
-    await api.post('/transactions', payload);
-    alert('Created');
-    loadTransactions();
-  }
+    // ✅ Add Company
+    async function addNewCompany() {
+      const Company_Name = newCompanyName.value.trim();
+      const GSTIN = newCompanyGST.value.trim();
+      const Email = newCompanyEmail.value.trim();
+      const Phone = newCompanyPhone.value.trim();
+      const Address = newCompanyAddress.value.trim();
+      if (!Company_Name) return alert('Enter company name');
+      const res = await api.post('/companies', { Company_Name, GSTIN, Email, Phone, Address });
+      alert('✅ Company added');
+      await loadSelects();
+      tcompany.value = res.Company_ID;
+      newCompanyForm.classList.add('hidden');
+    }
 
-  async function loadTransactions(){
-    const rows = await api.get('/transactions');
-    const tbody = document.querySelector('#transTable tbody');
-    tbody.innerHTML = '';
-    rows.forEach(r => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${r.Transaction_ID}</td><td>${r.Type}</td><td>${r.Date}</td><td>${r.Company_ID}</td><td>${r.Vendor_ID}</td><td>${r.Total_Amount}</td>
-        <td>
-          <a href="/api/transactions/${encodeURIComponent(r.Transaction_ID)}/pdf" target="_blank">PDF</a>
-        </td>`;
-      tbody.appendChild(tr);
-    });
-  }
+    // ✅ Add Vendor
+    async function addNewVendor() {
+      const Vendor_Name = newVendorName.value.trim();
+      const GSTIN = newVendorGST.value.trim();
+      const Email = newVendorEmail.value.trim();
+      const Phone = newVendorPhone.value.trim();
+      const Address = newVendorAddress.value.trim();
+      if (!Vendor_Name) return alert('Enter vendor name');
+      const res = await api.post('/vendors', { Vendor_Name, GSTIN, Email, Phone, Address });
+      alert('✅ Vendor added');
+      await loadSelects();
+      tvendor.value = res.Vendor_ID;
+      newVendorForm.classList.add('hidden');
+    }
 
-  // init
-  addItemRow(); addItemRow();
-  loadSelects(); loadTransactions();
-</script>
-<script src="js/rolecheck.js"></script>
+    async function createTransaction() {
+      const Type = type.value;
+      const Date = tdate.value || new Date().toISOString();
+      const Company_ID = tcompany.value;
+      const Vendor_ID = tvendor.value;
+      const itemsEls = document.querySelectorAll('#itemsContainer .grid');
+      const Items = Array.from(itemsEls).map(el => ({
+        Description: el.querySelector('.it-desc').value,
+        HSN_Code: el.querySelector('.it-hsn').value,
+        Quantity: el.querySelector('.it-qty').value || 0,
+        Rate: el.querySelector('.it-rate').value || 0,
+        Tax_Percentage: el.querySelector('.it-tax').value || 0
+      }));
+      await api.post('/transactions', { Type, Date, Company_ID, Vendor_ID, Items });
+      alert('Transaction created successfully ✅');
+      loadTransactions();
+    }
+
+    async function loadTransactions() {
+      const rows = await api.get('/transactions');
+      const tbody = document.getElementById('transTable');
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const cName = window.companyMap?.[r.Company_ID] || r.Company_ID;
+        const vName = window.vendorMap?.[r.Vendor_ID] || r.Vendor_ID;
+        const total = parseFloat(r.Total_Amount || 0).toFixed(2);
+        tbody.innerHTML += `
+          <tr class="hover:bg-gray-50">
+            <td class="p-2">${r.Transaction_ID}</td>
+            <td class="p-2">${r.Type}</td>
+            <td class="p-2">${r.Date}</td>
+            <td class="p-2">${cName}</td>
+            <td class="p-2">${vName}</td>
+            <td class="p-2 text-right">₹${total}</td>
+            <td class="p-2">
+              <a href="/api/transactions/${r.Transaction_ID}/pdf" target="_blank"
+                class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs shadow">🧾 View PDF</a>
+            </td>
+          </tr>`;
+      });
+    }
+
+    function logout() { fetch('/api/logout', { credentials: 'include' }); window.location.href = 'login.html'; }
+
+    document.addEventListener('DOMContentLoaded', async () => { await loadSelects(); addItemRow(); loadTransactions(); });
+  </script>
+
+  <script src="js/rolecheck.js"></script>
 </body>
 </html>

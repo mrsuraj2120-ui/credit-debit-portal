@@ -1,19 +1,36 @@
 // backend/public/js/rolecheck.js
 
-(async function initRole() {
+document.addEventListener("DOMContentLoaded", async () => {
   try {
-    // ✅ Fetch current logged-in user from backend session
+    // ✅ Fetch current logged-in user from backend session (same as index.html)
     const res = await fetch('/api/session', { credentials: 'include' });
     const user = await res.json();
 
     // 🚫 If not logged in, send to login page
-    if (!user) {
+    if (!user || !user.Role) {
       window.location.href = 'login.html';
       return;
     }
 
-    // 🧾 Store user info globally (optional)
+    // 🧾 Store user info globally
     window.currentUser = user;
+
+    // ✅ Sidebar role update (AFTER DOM is ready)
+    const roleEl = document.getElementById('adminRole');
+    if (roleEl) {
+      roleEl.textContent = user.Role || 'User';
+    }
+
+    // 🧑‍💻 Optional: emoji-based header update like dashboard
+    const emojiEl = document.getElementById('userEmoji');
+    const nameEl = document.getElementById('userNameHeader');
+    if (emojiEl && nameEl) {
+      let emoji = '🙂';
+      if (user.Role && user.Role.toLowerCase().includes('admin')) emoji = '👑';
+      else if (user.Role && user.Role.toLowerCase().includes('manager')) emoji = '🧑‍💼';
+      emojiEl.textContent = emoji;
+      nameEl.textContent = user.Name || user.Email || 'User';
+    }
 
     // 🧠 Hide create/add/new buttons for non-admins
     if (user.Role !== 'Admin') {
@@ -26,7 +43,7 @@
       });
     }
 
-    // 🔐 Hide admin panel link for non-admins
+    // 🔐 Hide admin-only links for non-admins
     const nav = document.querySelector('.nav');
     if (nav && user.Role !== 'Admin') {
       const adminLink = Array.from(nav.querySelectorAll('a'))
@@ -34,23 +51,22 @@
       if (adminLink) adminLink.style.display = 'none';
     }
 
-    // ✅ Optionally show user name in navbar (if you want)
+    // ✅ Show user label (if used elsewhere)
     const userLabel = document.querySelector('#userLabel');
     if (userLabel) {
       userLabel.textContent = `${user.Name} (${user.Role})`;
     }
 
-    } catch (err) {
+  } catch (err) {
     console.error('Role check failed:', err);
     window.location.href = 'login.html';
   }
-})();
 
-// Redirect Admin to admin.html, normal users to user.html
-if (window.location.pathname.includes('admin.html') && window.currentUser?.Role !== 'Admin') {
-  window.location.href = 'index.html';
-}
-if (window.location.pathname.includes('index.html') && window.currentUser?.Role === 'Admin') {
-  window.location.href = 'admin.html';
-}
-
+  // 🧩 Redirect rules (run after fetch)
+  if (window.location.pathname.includes('admin.html') && window.currentUser?.Role !== 'Admin') {
+    window.location.href = 'index.html';
+  }
+  if (window.location.pathname.includes('index.html') && window.currentUser?.Role === 'Admin') {
+    window.location.href = 'admin.html';
+  }
+});
