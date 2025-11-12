@@ -48,14 +48,15 @@
             <option>Credit</option>
           </select>
           <input id="tdate" type="date" class="border p-2 rounded" />
-          
+
           <!-- Company Dropdown -->
-          <select id="tcompany" class="border p-2 rounded" onchange="handleCompanySelect(this.value)">
-            <option value="">--Select--</option>
-          </select>
+<select id="tcompany" class="border p-2 rounded opacity-60" onchange="handleCompanySelect(this.value)" disabled>
+  <option value="">--Select--</option>
+</select>
+
 
           <!-- Vendor Dropdown -->
-          <select id="tvendor" class="border p-2 rounded" onchange="handleVendorSelect(this.value)">
+          <select id="tvendor" class="border p-2 rounded" onchange="handleVendorSelect(this.value)" disabled>
             <option value="">--Select--</option>
           </select>
         </div>
@@ -70,7 +71,7 @@
             <input id="newCompanyPhone" placeholder="Phone" class="border p-2 rounded" />
             <input id="newCompanyAddress" placeholder="Address" class="border p-2 rounded col-span-3" />
           </div>
-          <button class="bg-green-600 text-white px-3 py-1 rounded" onclick="addNewCompany()">Add</button>
+          <button id="addCompanyBtn" class="bg-green-600 text-white px-3 py-1 rounded" onclick="addNewCompany()">Add</button>
         </div>
 
         <div id="newVendorForm" class="hidden bg-gray-50 p-4 rounded-lg mb-4 border border-gray-200">
@@ -82,17 +83,23 @@
             <input id="newVendorPhone" placeholder="Phone" class="border p-2 rounded" />
             <input id="newVendorAddress" placeholder="Address" class="border p-2 rounded col-span-3" />
           </div>
-          <button class="bg-green-600 text-white px-3 py-1 rounded" onclick="addNewVendor()">Add</button>
+          <button id="addVendorBtn" class="bg-green-600 text-white px-3 py-1 rounded" onclick="addNewVendor()">Add</button>
         </div>
 
         <!-- Items -->
         <div class="bg-gray-50 p-4 rounded-lg mb-4">
           <h4 class="font-semibold mb-2">Items</h4>
-          <div id="itemsContainer"></div>
-          <button class="bg-blue-600 text-white px-3 py-1 rounded mt-2" onclick="addItemRow()">+ Add Item</button>
+          <div id="itemsContainer" class="mb-2 pointer-events-none opacity-60"></div>
+          <div class="flex items-center gap-2">
+            <button id="addItemBtn" class="bg-blue-600 text-white px-3 py-1 rounded mt-2" onclick="addItemRow()" disabled>+ Add Item</button>
+            <button id="removeItemBtn" class="bg-red-500 text-white px-3 py-1 rounded mt-2" onclick="removeLastItem()" disabled>- Remove Item</button>
+          </div>
         </div>
 
-        <button class="bg-green-600 text-white px-4 py-2 rounded" onclick="createTransaction()">Save</button>
+        <div class="flex gap-2">
+          <button id="submitBtn" class="bg-green-600 text-white px-4 py-2 rounded" onclick="submitTransaction('Created')">Submit</button>
+          <button id="draftBtn" class="bg-yellow-500 text-white px-4 py-2 rounded" onclick="submitTransaction('Draft')">Save as Draft</button>
+        </div>
       </div>
 
       <!-- Existing Transactions -->
@@ -104,6 +111,7 @@
               <tr>
                 <th class="px-4 py-2 font-semibold text-gray-700">ID</th>
                 <th class="px-4 py-2 font-semibold text-gray-700">Type</th>
+                <th class="px-4 py-2 font-semibold text-gray-700">Status</th>
                 <th class="px-4 py-2 font-semibold text-gray-700">Date</th>
                 <th class="px-4 py-2 font-semibold text-gray-700">From</th>
                 <th class="px-4 py-2 font-semibold text-gray-700">To</th>
@@ -118,11 +126,67 @@
     </main>
   </div>
 
+  <!-- Edit Modal (hidden until needed) -->
+  <div id="editModal" class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center">
+    <div class="bg-white w-11/12 md:w-3/4 p-6 rounded-lg shadow-lg max-h-[90vh] overflow-auto">
+      <h3 class="text-lg font-semibold mb-4">Edit Transaction <span id="editTxnId"></span></h3>
+      <div class="grid grid-cols-4 gap-3 mb-3">
+        <select id="editType" class="border p-2 rounded col-span-1">
+          <option>Debit</option>
+          <option>Credit</option>
+        </select>
+        <input id="editDate" type="date" class="border p-2 rounded col-span-1" />
+        <select id="editCompany" class="border p-2 rounded col-span-1"></select>
+        <select id="editVendor" class="border p-2 rounded col-span-1"></select>
+      </div>
+
+      <div id="editItemsContainer" class="mb-4"></div>
+      <div class="flex gap-2 mb-4">
+        <button class="bg-blue-600 text-white px-3 py-1 rounded" onclick="editAddItem()">+ Add Item</button>
+        <button class="bg-red-500 text-white px-3 py-1 rounded" onclick="editRemoveLast()">- Remove Item</button>
+      </div>
+
+      <div class="flex gap-2">
+        <button class="bg-green-600 text-white px-4 py-2 rounded" onclick="saveEdit('Created')">Submit</button>
+        <button class="bg-yellow-500 text-white px-4 py-2 rounded" onclick="saveEdit('Draft')">Save as Draft</button>
+        <button class="bg-gray-300 px-4 py-2 rounded" onclick="closeEdit()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ==================== SCRIPTS ==================== -->
   <script src="js/api.js"></script>
   <script>
     let uniqueParticulars = [];
     let uniqueRemarks = [];
+
+    // Helpers to enable/disable controls
+    function setVendorEnabled(enabled) {
+      const vend = document.getElementById('tvendor');
+      vend.disabled = !enabled;
+      vend.classList.toggle('opacity-60', !enabled);
+      // when disabling vendor, also disable items area
+      setItemsEnabled(false);
+    }
+
+    function setCompanyEnabled(enabled) {
+      const comp = document.getElementById('tcompany');
+      comp.disabled = !enabled;
+      comp.classList.toggle('opacity-60', !enabled);
+      // When disabling company, also disable vendor
+      setVendorEnabled(false);
+    }
+    
+
+    function setItemsEnabled(enabled) {
+      const container = document.getElementById('itemsContainer');
+      const addBtn = document.getElementById('addItemBtn');
+      const removeBtn = document.getElementById('removeItemBtn');
+      container.classList.toggle('pointer-events-none', !enabled);
+      container.classList.toggle('opacity-60', !enabled);
+      addBtn.disabled = !enabled;
+      removeBtn.disabled = !enabled;
+    }
 
     // ✅ Load unique values from backend
     async function loadUniqueItemValues() {
@@ -136,10 +200,10 @@
       }
     }
 
-    // ✅ Create item input with autocomplete
+    // Create item input with autocomplete and remove button per row
     function createItemElement() {
       const wrapper = document.createElement('div');
-      wrapper.className = 'grid grid-cols-5 gap-2 mb-2';
+      wrapper.className = 'grid grid-cols-5 gap-2 mb-2 items-center item-row';
       wrapper.innerHTML = `
         <input list="particularList" placeholder="Particular" class="border p-2 rounded it-particular" />
         <datalist id="particularList">
@@ -152,12 +216,55 @@
         <input placeholder="Qty" type="number" class="border p-2 rounded it-qty" />
         <input placeholder="Rate" type="number" class="border p-2 rounded it-rate" />
         <input placeholder="Tax%" type="number" class="border p-2 rounded it-tax" />
+        <button class="ml-2 bg-red-500 text-white px-2 py-1 rounded remove-single" title="Remove">✖</button>
       `;
+
+      function toggleSubmitEnabled() {
+  const submitBtn = document.getElementById('submitBtn');
+  const itemsEls = document.querySelectorAll('#itemsContainer .item-row');
+  if (!itemsEls.length) {
+    submitBtn.disabled = true;
+    submitBtn.classList.add('opacity-60');
+    return;
+  }
+
+  const allFilled = Array.from(itemsEls).every(row => {
+    const vals = Array.from(row.querySelectorAll('input')).map(i => i.value.trim());
+    return vals.every(v => v !== '');
+  });
+
+  submitBtn.disabled = !allFilled;
+  submitBtn.classList.toggle('opacity-60', !allFilled);
+}
+
+
+      // attach remove logic for this row
+      wrapper.querySelector('.remove-single').addEventListener('click', (e) => {
+        e.preventDefault();
+        const row = wrapper;
+        const values = Array.from(row.querySelectorAll('input')).map(i => i.value.trim());
+        const anyFilled = values.some(v => v !== '');
+        if (anyFilled) return alert('Row has values. Clear fields before removing.');
+        row.remove();
+      });
+
+      wrapper.querySelectorAll('input').forEach(inp => inp.addEventListener('input', toggleSubmitEnabled));
       return wrapper;
     }
 
     function addItemRow() {
       document.getElementById('itemsContainer').appendChild(createItemElement());
+    }
+
+    function removeLastItem() {
+      const container = document.getElementById('itemsContainer');
+      const rows = container.querySelectorAll('.item-row');
+      if (!rows.length) return;
+      const last = rows[rows.length - 1];
+      const values = Array.from(last.querySelectorAll('input')).map(i => i.value.trim());
+      const anyFilled = values.some(v => v !== '');
+      if (anyFilled) return alert('Last row has values. Clear it first to remove.');
+      last.remove();
     }
 
     async function loadSelects() {
@@ -173,10 +280,40 @@
       vendSel.innerHTML += `<option value="new">➕ New</option>`;
       window.companyMap = Object.fromEntries(companies.map(c => [c.Company_ID, c.Company_Name]));
       window.vendorMap = Object.fromEntries(vendors.map(v => [v.Vendor_ID, v.Vendor_Name]));
+
+      // also populate edit modal selects
+      const editComp = document.getElementById('editCompany');
+      const editVend = document.getElementById('editVendor');
+      if (editComp) {
+        editComp.innerHTML = '<option value="">--Select--</option>' + companies.map(c => `<option value="${c.Company_ID}">${c.Company_Name}</option>`).join('') + '<option value="new">➕ New</option>';
+      }
+      if (editVend) {
+        editVend.innerHTML = '<option value="">--Select--</option>' + vendors.map(v => `<option value="${v.Vendor_ID}">${v.Vendor_Name}</option>`).join('') + '<option value="new">➕ New</option>';
+      }
     }
 
-    function handleCompanySelect(v) { document.getElementById('newCompanyForm').classList.toggle('hidden', v !== 'new'); }
-    function handleVendorSelect(v) { document.getElementById('newVendorForm').classList.toggle('hidden', v !== 'new'); }
+    function handleCompanySelect(v) {
+      document.getElementById('newCompanyForm').classList.toggle('hidden', v !== 'new');
+      if (!v) { setVendorEnabled(false); return; }
+      // if existing company selected -> enable vendor
+      if (v !== 'new') { setVendorEnabled(true); return; }
+      // if new selected -> enable vendor only after form filled minimally (Company Name)
+      const nameEl = document.getElementById('newCompanyName');
+      function check() { setVendorEnabled(!!nameEl.value.trim()); }
+      nameEl.addEventListener('input', check, { once: false });
+      check();
+    }
+
+    function handleVendorSelect(v) {
+      document.getElementById('newVendorForm').classList.toggle('hidden', v !== 'new');
+      if (!v) { setItemsEnabled(false); return; }
+      if (v !== 'new') { setItemsEnabled(true); return; }
+      // if new vendor selected -> enable items only after vendor name filled
+      const nameEl = document.getElementById('newVendorName');
+      function check() { setItemsEnabled(!!nameEl.value.trim()); }
+      nameEl.addEventListener('input', check, { once: false });
+      check();
+    }
 
     async function addNewCompany() {
       const Company_Name = newCompanyName.value.trim();
@@ -189,7 +326,8 @@
       alert('✅ Company added');
       await loadSelects();
       tcompany.value = res.Company_ID;
-      newCompanyForm.classList.add('hidden');
+      document.getElementById('newCompanyForm').classList.add('hidden');
+      setVendorEnabled(true);
     }
 
     async function addNewVendor() {
@@ -203,36 +341,54 @@
       alert('✅ Vendor added');
       await loadSelects();
       tvendor.value = res.Vendor_ID;
-      newVendorForm.classList.add('hidden');
+      document.getElementById('newVendorForm').classList.add('hidden');
+      setItemsEnabled(true);
     }
 
-    async function createTransaction() {
+    async function submitTransaction(status) {
   const Type = type.value;
   const Date = tdate.value || new Date().toISOString();
   const Company_ID = tcompany.value;
   const Vendor_ID = tvendor.value;
-  const itemsEls = document.querySelectorAll('#itemsContainer .grid');
+
+  const itemsEls = document.querySelectorAll('#itemsContainer .item-row');
   const Items = Array.from(itemsEls).map(el => ({
-    Description: el.querySelector('.it-particular').value,
-    HSN_Code: el.querySelector('.it-remarks').value,
-    Quantity: el.querySelector('.it-qty').value || 0,
-    Rate: el.querySelector('.it-rate').value || 0,
-    Tax_Percentage: el.querySelector('.it-tax').value || 0
+    Particular: el.querySelector('.it-particular')?.value.trim() || '',
+    Remarks: el.querySelector('.it-remarks')?.value.trim() || '',
+    Quantity: el.querySelector('.it-qty')?.value || 0,
+    Rate: el.querySelector('.it-rate')?.value || 0,
+    Tax_Percentage: el.querySelector('.it-tax')?.value || 0
   }));
 
-  await api.post('/transactions', { Type, Date, Company_ID, Vendor_ID, Items });
-  alert('Transaction created successfully ✅');
+  // ✅ If Submit clicked (Created), validate item completeness
+  if (status === 'Created') {
+    const anyEmptyRow = Items.some(it =>
+      !it.Particular || !it.Remarks || !it.Quantity || !it.Rate || !it.Tax_Percentage
+    );
+    if (anyEmptyRow) {
+      alert('⚠️ Please fill all fields in every item row before submitting.');
+      return;
+    }
+  }
+
+  // ✅ Ensure status is exactly what was passed
+  const payload = { Type, Date, Company_ID, Vendor_ID, Items, Status: status };
+
+  await api.post('/transactions', payload);
+  alert(`Transaction ${status === 'Draft' ? 'saved as draft' : 'created successfully'} ✅`);
   loadTransactions();
 
-  // 🧹 Clear all fields after save
+  // 🧹 Reset form after save
   tdate.value = '';
   tcompany.value = '';
-  tcompany.selectedIndex = 0;
   tvendor.value = '';
-  tvendor.selectedIndex = 0;
-  document.getElementById('itemsContainer').innerHTML = ''; // clear old rows
-  addItemRow(); // add one empty new row for next entry
+  document.getElementById('itemsContainer').innerHTML = '';
+  addItemRow();
+  setVendorEnabled(false);
+  setItemsEnabled(false);
+  toggleSubmitEnabled(); // disable submit again after reset
 }
+
 
     async function loadTransactions() {
       const rows = await api.get('/transactions');
@@ -242,31 +398,179 @@
         const cName = window.companyMap?.[r.Company_ID] || r.Company_ID;
         const vName = window.vendorMap?.[r.Vendor_ID] || r.Vendor_ID;
         const total = parseFloat(r.Total_Amount || 0).toFixed(2);
+        const status = r.Status || 'Created';
+        const actionHtml = status === 'Draft'
+          ? `<button data-id="${r.Transaction_ID}" class="edit-btn inline-block bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-xs">✏️ Edit</button>`
+          : `<a href="/api/transactions/${r.Transaction_ID}/pdf" target="_blank" class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs shadow">🧾 View PDF</a>`;
+
         tbody.innerHTML += `
           <tr class="hover:bg-gray-50">
             <td class="p-2">${r.Transaction_ID}</td>
             <td class="p-2">${r.Type}</td>
+            <td class="p-2">${status}</td>
             <td class="p-2">${r.Date}</td>
             <td class="p-2">${cName}</td>
             <td class="p-2">${vName}</td>
             <td class="p-2 text-right">₹${total}</td>
-            <td class="p-2 text-center">
-              <a href="/api/transactions/${r.Transaction_ID}/pdf" target="_blank"
-                class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs shadow">🧾 View PDF</a>
-            </td>
+            <td class="p-2 text-center">${actionHtml}</td>
           </tr>`;
       });
+
+      // attach edit handlers
+      document.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', (e) => {
+        const id = e.currentTarget.dataset.id;
+        openEdit(id);
+      }));
     }
 
     function logout() { fetch('/api/logout', { credentials: 'include' }); window.location.href = 'login.html'; }
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      await loadUniqueItemValues();
-      await loadSelects();
-      addItemRow();
+    // ----------------- EDIT FLOW -----------------
+async function openEdit(id) {
+  document.getElementById('editModal').classList.remove('hidden');
+  document.getElementById('editTxnId').innerText = id;
+
+  // ✅ Fetch transaction
+  const txn = await api.get('/transactions/' + id);
+
+  // ✅ Load dropdown data before rendering items
+  await loadUniqueItemValues();
+  await loadSelects();
+
+  // ✅ Fill top fields
+  const typeEl = document.getElementById('editType');
+  const dateEl = document.getElementById('editDate');
+  const compEl = document.getElementById('editCompany');
+  const vendEl = document.getElementById('editVendor');
+
+  typeEl.value = txn.Type;
+  dateEl.value = txn.Date ? txn.Date.split('T')[0] : '';
+  compEl.value = txn.Company_ID || '';
+  vendEl.value = txn.Vendor_ID || '';
+
+  // ✅ Make Type, Company, Vendor non-editable
+  typeEl.disabled = true;
+  compEl.disabled = true;
+  vendEl.disabled = true;
+  typeEl.classList.add('bg-gray-100');
+  compEl.classList.add('bg-gray-100');
+  vendEl.classList.add('bg-gray-100');
+
+  // ✅ Allow backdate → remove min restriction
+  dateEl.removeAttribute('min');
+
+  // ✅ Load existing items
+  const cont = document.getElementById('editItemsContainer');
+  cont.innerHTML = '';
+
+  (txn.Items || txn.items || []).forEach(it => {
+    const row = document.createElement('div');
+    row.className = 'grid grid-cols-5 gap-2 mb-2 items-center';
+    row.innerHTML = `
+      <input list="particularList" value="${it.Particular || ''}" placeholder="Particular" class="border p-2 rounded it-particular" />
+      <datalist id="particularList">
+        ${uniqueParticulars.map(v => `<option value="${v}"></option>`).join('')}
+      </datalist>
+
+      <input list="remarkList" value="${it.Remarks || ''}" placeholder="Remarks" class="border p-2 rounded it-remarks" />
+      <datalist id="remarkList">
+        ${uniqueRemarks.map(v => `<option value="${v}"></option>`).join('')}
+      </datalist>
+
+      <input value="${it.Quantity || 0}" placeholder="Qty" type="number" class="border p-2 rounded it-qty" />
+      <input value="${it.Rate || 0}" placeholder="Rate" type="number" class="border p-2 rounded it-rate" />
+      <input value="${it.Tax_Percentage || 0}" placeholder="Tax%" type="number" class="border p-2 rounded it-tax" />
+    `;
+    cont.appendChild(row);
+  });
+}
+
+
+    function closeEdit() { document.getElementById('editModal').classList.add('hidden'); }
+
+    function editAddItem() {
+      const cont = document.getElementById('editItemsContainer');
+      const row = document.createElement('div');
+      row.className = 'grid grid-cols-5 gap-2 mb-2 items-center';
+      row.innerHTML = `
+        <input placeholder="Particular" class="border p-2 rounded it-particular" />
+        <input placeholder="Remarks" class="border p-2 rounded it-remarks" />
+        <input placeholder="Qty" type="number" class="border p-2 rounded it-qty" />
+        <input placeholder="Rate" type="number" class="border p-2 rounded it-rate" />
+        <input placeholder="Tax%" type="number" class="border p-2 rounded it-tax" />
+      `;
+      cont.appendChild(row);
+    }
+
+    function editRemoveLast() {
+      const cont = document.getElementById('editItemsContainer');
+      const rows = cont.querySelectorAll('div.grid');
+      if (!rows.length) return;
+      const last = rows[rows.length - 1];
+      const values = Array.from(last.querySelectorAll('input')).map(i => i.value.trim());
+      const anyFilled = values.some(v => v !== '');
+      if (anyFilled) return alert('Last row has values. Clear it first to remove.');
+      last.remove();
+    }
+
+    async function saveEdit(status) {
+      const id = document.getElementById('editTxnId').innerText;
+      const Type = document.getElementById('editType').value;
+      const Date = document.getElementById('editDate').value;
+      const Company_ID = document.getElementById('editCompany').value;
+      const Vendor_ID = document.getElementById('editVendor').value;
+      const itemsEls = document.querySelectorAll('#editItemsContainer .grid');
+      const Items = Array.from(itemsEls).map(el => ({
+        Particular: el.querySelector('.it-particular')?.value || '',
+        Remarks: el.querySelector('.it-remarks')?.value || '',
+        Quantity: el.querySelector('.it-qty')?.value || 0,
+        Rate: el.querySelector('.it-rate')?.value || 0,
+        Tax_Percentage: el.querySelector('.it-tax')?.value || 0
+      }));
+
+      await api.put(`/transactions/${id}`, { Type, Date, Company_ID, Vendor_ID, Items, Status: status });
+      alert(`Transaction ${status === 'Draft' ? 'saved as draft' : 'updated'} ✅`);
+      closeEdit();
       loadTransactions();
-    });
-  </script>
+    }
+
+    // ----------------- Init -----------------
+document.addEventListener('DOMContentLoaded', async () => {
+  // prevent backdates -> set min to today
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  document.getElementById('tdate').min = `${yyyy}-${mm}-${dd}`;
+  document.getElementById('editDate').min = `${yyyy}-${mm}-${dd}`;
+
+  // ✅ Enable company dropdown only when date is selected
+  document.getElementById('tdate').addEventListener('change', e => {
+    const hasDate = !!e.target.value;
+    setCompanyEnabled(hasDate);
+
+    // optional: clear company/vendor/items when date cleared
+    if (!hasDate) {
+      document.getElementById('tcompany').value = '';
+      document.getElementById('tvendor').value = '';
+      setVendorEnabled(false);
+      setItemsEnabled(false);
+    }
+  });
+
+  await loadUniqueItemValues();
+  await loadSelects();
+  addItemRow();
+  setVendorEnabled(false);
+  setItemsEnabled(false);
+  loadTransactions();
+
+  // close modal on outside click
+  document.getElementById('editModal').addEventListener('click', (e) => {
+    if (e.target.id === 'editModal') closeEdit();
+  });
+});
+</script>
 
   <script src="js/rolecheck.js"></script>
 </body>

@@ -15,7 +15,7 @@ const DEFAULT_SHEETS = {
     ["Transaction_ID","Type","Date","Company_ID","Vendor_ID","Reference_No","Reason","Total_Amount","Status","Created_By","Created_At","Approved_By"]
   ],
   Items: [
-    ["Item_ID","Transaction_ID","Description","HSN_Code","Quantity","Rate","Tax_Percentage","Tax_Amount","Total_Amount"]
+    ["Item_ID","Transaction_ID","Particular","Remarks","Quantity","Rate","Tax_Percentage","Tax_Amount","Total_Amount"]
   ],
   Settings: [
     ["Setting_Name","Value"]

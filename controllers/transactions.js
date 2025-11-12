@@ -38,8 +38,8 @@ function create(req, res) {
       Item_ID: itemId,
       
       Transaction_ID: id,
-      Description: it.Description || '',
-      HSN_Code: it.HSN_Code || '',
+      Particular: it.Particular || '',
+      Remarks: it.Remarks || '',
       Quantity: qty,
       Rate: rate,
       Tax_Percentage: taxPerc,
@@ -47,6 +47,10 @@ function create(req, res) {
       Total_Amount: lineTotal
     });
   });
+
+  const validStatuses = ['Draft', 'Created', 'Approved'];
+  const cleanStatus = validStatuses.includes(req.body.Status) ? req.body.Status : 'Draft';
+  rows[idx].Status = cleanStatus;
 
   const obj = {
     Transaction_ID: id,
@@ -57,7 +61,7 @@ function create(req, res) {
     Reference_No: Reference_No || '',
     Reason: Reason || '',
     Total_Amount: total,
-    Status: 'Draft',
+    Status: req.body.Status || 'Draft',
     Created_By: (req.session?.user?.Name) || 'Unknown User',
     Created_At: new Date().toISOString(),
     Approved_By: ''
@@ -84,15 +88,104 @@ function get(req, res) {
 }
 
 function update(req, res) {
-  const id = req.params.id;
-  const rows = readSheet(SHEET);
-  const idx = rows.findIndex(r => r.Transaction_ID === id);
-  if (idx === -1) return res.status(404).json({ error: 'Not found' });
-  const updated = { ...rows[idx], ...req.body };
-  rows[idx] = updated;
-  writeSheet(SHEET, rows);
-  res.json({ success: true, data: updated });
+  try {
+    const id = req.params.id;
+    const rows = readSheet(SHEET);
+    const idx = rows.findIndex(r => r.Transaction_ID === id);
+    if (idx === -1) return res.status(404).json({ error: 'Transaction not found' });
+
+    // ✅ Update Transaction master row with Updated_By tracking
+const validStatuses = ['Draft', 'Created', 'Approved'];
+const prevStatus = rows[idx].Status;
+const cleanStatus = validStatuses.includes(req.body.Status)
+  ? req.body.Status
+  : prevStatus;
+
+const now = new Date().toISOString();
+const userName = req.session?.user?.Name || 'Unknown User';
+
+// Only refresh Updated_At and Updated_By when status changes OR items edited
+const shouldUpdateTimestamp =
+  cleanStatus === 'Created' && prevStatus === 'Draft' ||
+  cleanStatus === 'Approved' && prevStatus !== 'Approved' ||
+  req.body.Items?.length; // also update when items are modified
+
+const updated = {
+  ...rows[idx],
+  ...req.body,
+  Status: cleanStatus,
+  Updated_At: shouldUpdateTimestamp ? now : rows[idx].Updated_At || '',
+  Updated_By: shouldUpdateTimestamp ? userName : rows[idx].Updated_By || '',
+};
+
+
+    rows[idx] = updated;
+    writeSheet(SHEET, rows);
+
+    // ✅ Update Items logic
+    const allItems = readSheet(ITEMS_SHEET);
+
+    // Step 1: Separate current transaction items
+    const currentItems = allItems.filter(i => i.Transaction_ID === id);
+    const otherItems = allItems.filter(i => i.Transaction_ID !== id);
+
+    // Step 2: Determine next item number (continue sequence)
+    let nextItemNum = currentItems.length
+      ? Math.max(...currentItems.map(it => {
+          const parts = it.Item_ID.split('ITM');
+          return Number(parts[1]) || 0;
+        })) + 1
+      : 1;
+
+    // Step 3: Prepare new item records (update or add)
+    const updatedItems = (req.body.Items || []).map((it, idx) => {
+      const existing = currentItems[idx];
+      let itemId;
+
+      if (existing) {
+        // update existing item
+        itemId = existing.Item_ID;
+      } else {
+        // new item → generate next sequential ID
+        itemId = `${id}-ITM${String(nextItemNum++).padStart(3, '0')}`;
+      }
+
+      const qty = Number(it.Quantity || 0);
+      const rate = Number(it.Rate || 0);
+      const taxPerc = Number(it.Tax_Percentage || 0);
+      const taxAmt = (qty * rate * taxPerc) / 100;
+      const total = qty * rate + taxAmt;
+
+      return {
+        Item_ID: itemId,
+        Transaction_ID: id,
+        Particular: it.Particular || '',
+        Remarks: it.Remarks || '',
+        Quantity: qty,
+        Rate: rate,
+        Tax_Percentage: taxPerc,
+        Tax_Amount: taxAmt,
+        Total_Amount: total,
+      };
+    });
+
+    // Step 4: Merge updated items + other transactions’ items
+    const finalItems = otherItems.concat(updatedItems);
+    writeSheet(ITEMS_SHEET, finalItems);
+
+    res.json({
+      success: true,
+      message: 'Transaction and items updated successfully',
+      data: updated,
+      items: updatedItems,
+    });
+
+  } catch (err) {
+    console.error('Update error:', err);
+    res.status(500).json({ error: 'Failed to update transaction' });
+  }
 }
+
 
 function approve(req, res) {
   const id = req.params.id;
@@ -121,146 +214,193 @@ function generatePDF(req, res) {
     const vendor = vendors.find(v => v.Vendor_ID === tx.Vendor_ID) || {};
     const items = readSheet(ITEMS_SHEET).filter(i => i.Transaction_ID === id);
 
-    // ---- Totals ----
-    let subtotal = 0, totalTax = 0, taxPercent = 0;
+    let subtotal = 0, totalTax = 0;
     items.forEach(it => {
       const amt = parseFloat(it.Total_Amount) || 0;
       const taxP = parseFloat(it.Tax_Percentage) || 0;
       subtotal += amt;
       totalTax += (amt * taxP) / 100;
-      taxPercent = taxP;
     });
 
     const grandTotal = subtotal + totalTax;
-    const roundedTotal = Math.round(grandTotal);
 
-    // ---- PDF Setup ----
     res.setHeader('Content-Disposition', `inline; filename=${id}.pdf`);
     res.setHeader('Content-Type', 'application/pdf');
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
     doc.pipe(res);
     const border = '#000000';
 
-    // ---- BORDER OUTLINE ----
     doc.rect(30, 30, 540, 780).strokeColor(border).stroke();
 
-    // ---- HEADER ----
     const headerTitle = tx.Type && tx.Type.toLowerCase() === "credit" ? "CREDIT NOTE" : "DEBIT NOTE";
     doc.font('Helvetica-Bold').fontSize(18).text(headerTitle, { align: 'center' });
 
-    // ---- COMPANY INFO ----
     let y = 80;
-    doc.font('Helvetica-Bold').fontSize(10).text(`FROM :${company.Company_Name || 'COMPANY NAME'}`, 40, y + 1 )
-
+    doc.font('Helvetica-Bold').fontSize(10).text(`FROM : ${company.Company_Name || 'COMPANY NAME'}`, 40, y + 1);
     doc.font('Helvetica').fontSize(10);
-doc.text(`${company.Address || ''}`, 40, y + 15, { width: 200 });
-y = doc.y + 5;  // move below address automatically
-doc.text(`PHONE :${company.Phone || ''}`, 40, y);
-doc.text(`GSTIN :${company.GSTIN || ''}`, 40, y + 15);
+    doc.text(`${company.Address || ''}`, 40, y + 15, { width: 200 });
+    y = doc.y + 5;
+    doc.text(`PHONE : ${company.Phone || ''}`, 40, y);
+    doc.text(`GSTIN : ${company.GSTIN || ''}`, 40, y + 15);
 
-
-    // ---- RIGHT SIDE INFO ----
     let x = 80;
     doc.text(`Credit/Debit Note No.: ${tx.Transaction_ID}`, 350, x);
     doc.text(`Date: ${tx.Date || ''}`, 350, x + 15);
     doc.text(`Original Invoice No.: ${tx.Reference_No || ''}`, 350, x + 30);
 
-    // ---- CUSTOMER INFO ----
-    doc.font('Helvetica-Bold').fontSize(10).text(`TO :${vendor.Vendor_Name || 'VENDER NAME'}`, 40, y + 90 )
-    doc.font('Helvetica').fontSize(10)
-      doc.font('Helvetica').fontSize(10);
-doc.text(`${vendor.Address || ''}`, 40, y + 105, { width: 200 });
-y = doc.y + 5; // move down dynamically after wrapped address
-doc.text(`GSTIN :${vendor.GSTIN || ''}`, 40, y);
-doc.text(`PHONE :${vendor.Phone || ''}`, 40, y + 15);
-
-
-    // ---- ITEM TABLE HEADER ----
-    const tableTop = doc.y + 20;
-    const colWidths = [40, 50, 160, 60, 60, 60, 60];
-    const headers = ['S. No.', 'Description', 'HSN/SAC', 'Quantity', 'Rate', 'Amount'];
-
-    doc.rect(40, tableTop, 520, 20).strokeColor(border).stroke();
-    doc.font('Helvetica-Bold').fontSize(10);
-    doc.text('S. No.', 45, tableTop + 5);
-    doc.text('REASON', 90, tableTop + 5);
-    doc.text('HSN/SAC', 240, tableTop + 5);
-    doc.text('Quantity', 300, tableTop + 5);
-    doc.text('Rate', 370, tableTop + 5);
-    doc.text('Tax Amt', 440, tableTop + 5);
-    doc.text('Amount', 500, tableTop + 5);
-    
-
-    // ---- ITEM ROWS ----
-    let rowY = tableTop + 20;
+    doc.font('Helvetica-Bold').fontSize(10).text(`TO : ${vendor.Vendor_Name || 'VENDOR NAME'}`, 40, y + 90);
     doc.font('Helvetica').fontSize(10);
-    items.forEach((it, i) => {
-      doc.rect(40, rowY, 520, 20).strokeColor(border).stroke();
-      doc.text(String(i + 1), 45, rowY + 5);
-      doc.text(it.Description || '', 90, rowY + 5, { width: 140 });
-      doc.text(it.HSN_Code || '', 240, rowY + 5);
-      doc.text(it.Quantity || '', 300, rowY + 5);
-      doc.text(it.Rate || '', 370, rowY + 5);
-      doc.text(it.Tax_Amount || '', 440, rowY + 5);
-      doc.text(it.Total_Amount || '', 500, rowY + 5);
+    doc.text(`${vendor.Address || ''}`, 40, y + 105, { width: 200 });
+    y = doc.y + 5;
+    doc.text(`GSTIN : ${vendor.GSTIN || ''}`, 40, y);
+    doc.text(`PHONE : ${vendor.Phone || ''}`, 40, y + 15);
 
-      rowY += 20;
+    // ====== Table Header ======
+const tableTop = doc.y + 25;
+const borderColor = '#000000';
+
+doc.rect(40, tableTop, 520, 20).strokeColor(borderColor).stroke();
+doc.font('Helvetica-Bold').fontSize(10);
+
+const headers = [
+  { label: 'S. No.', width: 40 },
+  { label: 'Particular', width: 110 },
+  { label: 'Remarks', width: 70 },
+  { label: 'Quantity', width: 55 },
+  { label: 'Rate', width: 40 },
+  { label: 'Tax Amt', width: 50 },
+  { label: 'Total Amount', width: 55 },
+];
+
+let colX = 45;
+headers.forEach(h => {
+  doc.text(h.label, colX, tableTop + 5);
+  colX += h.width;
+});
+
+// ====== Table Body ======
+let rowY = tableTop + 20;
+doc.font('Helvetica').fontSize(10);
+
+items.forEach((it, i) => {
+  // Prepare data for each column
+  const cols = [
+    String(i + 1),
+    it.Particular || '',
+    it.Remarks || '',
+    it.Quantity || '',
+    (parseFloat(it.Rate) || 0).toFixed(2),
+    (parseFloat(it.Tax_Amount) || 0).toFixed(2),
+    (parseFloat(it.Total_Amount) || 0).toFixed(2),
+  ];
+
+  // Calculate wrapped height for the tallest column (Particular/Remarks)
+  const textHeights = [];
+  let xPos = 45;
+
+  headers.forEach((h, idx) => {
+    const options = { width: h.width - 5 };
+    const text = cols[idx];
+    const height = doc.heightOfString(text, options) + 8; // 8 for padding
+    textHeights.push(height);
+    xPos += h.width;
+  });
+
+  const rowHeight = Math.max(...textHeights);
+
+  // Draw row border
+  doc.rect(40, rowY, 520, rowHeight).strokeColor(borderColor).stroke();
+
+  // Render each column’s text
+  let colX = 45;
+  headers.forEach((h, idx) => {
+    const text = cols[idx];
+    const alignRight = ['Rate', 'Tax Amt', 'Total Amount'].includes(h.label);
+    doc.text(text, colX, rowY + 4, {
+      width: h.width - 5,
+      align: alignRight ? 'right' : 'left',
     });
+    colX += h.width;
+  });
 
-    // ---- AMOUNT IN WORDS ----
-    const amountY = rowY + 10;
-    doc.font('Helvetica-Bold').text('AMOUNT IN WORDS :', 40, amountY);
-    doc.font('Helvetica').text(numberToWords(roundedTotal).toUpperCase() + ' ONLY', 150, amountY, { width: 200 });
+  rowY += rowHeight; // move to next row dynamically
+});
 
-    // ---- TOTAL BOX (Fixed Alignment) ----
-    
+// ====== Amount in Words & Totals Box Side-by-Side ======
+const amountY = rowY + 10;
+doc.font('Helvetica-Bold').text('AMOUNT IN WORDS :', 40, amountY);
+
+doc.font('Helvetica')
+  .text(amountToWordsIndian(grandTotal).toUpperCase(), 145, amountY, { width: 170 });
+
+// Now attach totals box right beside it
 const boxWidth = 160;
 const boxHeight = 50;
 const boxX = doc.page.width - boxWidth - 35;
-const boxY = doc.y + 1;
+const boxY = amountY - 5;
 
-doc.rect(boxX, boxY, boxWidth, boxHeight).strokeColor(border).stroke();
+doc.rect(boxX, boxY, boxWidth, boxHeight).strokeColor(borderColor).stroke();
 
 const labelX = boxX + 10;
-const valueX = boxX + 10; // same left start; width will handle right alignment
-const valueWidth = boxWidth - 20; // right padding = 10px
+const valueWidth = boxWidth - 20;
 
 doc.font('Helvetica').fontSize(10);
-
-// Labels
 doc.text('Total Amount :', labelX, boxY + 5);
 doc.text('Tax Amount :', labelX, boxY + 20);
 doc.text('Taxable Amount :', labelX, boxY + 35);
 
-// Values (aligned cleanly to right edge inside box)
-doc.text(subtotal.toFixed(2), valueX, boxY + 5, { width: valueWidth, align: 'right' });
-doc.text(totalTax.toFixed(2), valueX, boxY + 20, { width: valueWidth, align: 'right' });
-doc.text(grandTotal.toFixed(2), valueX, boxY + 35, { width: valueWidth, align: 'right' });
+doc.text(subtotal.toFixed(2), labelX, boxY + 5, { width: valueWidth, align: 'right' });
+doc.text(totalTax.toFixed(2), labelX, boxY + 20, { width: valueWidth, align: 'right' });
+doc.text(grandTotal.toFixed(2), labelX, boxY + 35, { width: valueWidth, align: 'right' });
 
-// ---- SIGNATURE ----
-const sigY = boxY + 140;  // ✅ fixed line
-doc.font('Helvetica').text('for ' + (company.Company_Name || 'COMPANY NAME'), 440, sigY);
-doc.text('Authorized Signature', 450, sigY + 45);
+    const sigY = boxY + 100;
+    doc.font('Helvetica').text('for ' + (company.Company_Name || 'COMPANY NAME'), 420, sigY);
+    doc.text('Authorized Signature', 440, sigY + 45);
 
-// ---- OUTER BORDER ----
-doc.rect(30, 30, 540, 780).strokeColor(border).stroke();
-doc.end();
+    doc.rect(30, 30, 540, 780).strokeColor(border).stroke();
+    doc.end();
 
+    function amountToWordsIndian(amount) {
+      amount = Number(Number(amount).toFixed(2));
+      const rupees = Math.floor(amount);
+      const paise = Math.round((amount - rupees) * 100);
 
-    // ---- HELPER FUNCTION ----
-    function numberToWords(num) {
-      const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
-        'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-      const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-      if ((num = num.toString()).length > 9) return 'Overflow';
-      const n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{3})(\d{2})$/);
-      if (!n) return '';
-      let str = '';
-      str += (Number(n[1]) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + ' Crore ' : '');
-      str += (Number(n[2]) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + ' Lakh ' : '');
-      str += (Number(n[3]) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + ' Thousand ' : '');
-      str += (Number(n[4]) ? (a[n[4][0]] ? a[n[4][0]] + ' ' + a[n[4][1]] : b[n[4][0]] + ' ' + a[n[4][1]]) : '');
-      return str.trim();
+      const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+        'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+      const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+      function convertTwoDigits(num) {
+        if (num < 20) return ones[num];
+        return tens[Math.floor(num / 10)] + (num % 10 ? ' ' + ones[num % 10] : '');
+      }
+
+      function convertToWords(num) {
+        if (num === 0) return 'Zero';
+        let words = '';
+        const crore = Math.floor(num / 10000000);
+        num %= 10000000;
+        const lakh = Math.floor(num / 100000);
+        num %= 100000;
+        const thousand = Math.floor(num / 1000);
+        num %= 1000;
+        const hundred = Math.floor(num / 100);
+        const rest = num % 100;
+
+        if (crore) words += convertTwoDigits(crore) + ' Crore ';
+        if (lakh) words += convertTwoDigits(lakh) + ' Lakh ';
+        if (thousand) words += convertTwoDigits(thousand) + ' Thousand ';
+        if (hundred) words += ones[hundred] + ' Hundred ';
+        if (rest) words += convertTwoDigits(rest) + ' ';
+        return words.trim();
+      }
+
+      let result = convertToWords(rupees) + ' Rupees';
+      if (paise > 0) {
+        result += ' and ' + convertToWords(paise) + ' Paise Only';
+      } else {
+        result += ' Only';
+      }
+      return result;
     }
 
   } catch (err) {
@@ -269,6 +409,7 @@ doc.end();
       res.status(500).json({ error: 'Failed to generate PDF' });
   }
 }
+
 
 /* ----------------------------------------------------
    ✅ Excel-accurate Dashboard Summary
